@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Senani — Logo & Brand Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#08080b;--gold:#d4af37;--gold-bright:#f4dd95;--gold-deep:#9c7a2e;--champagne:#e8c97a;
+    --ink:#ece7dc;--muted:#9b948a;--faint:#6a655e;
+    --line:rgba(212,175,55,.16);--line-soft:rgba(255,255,255,.07);
+    --display:'Fraunces',Georgia,serif;--wordmark:'Cinzel',serif;--body:'Hanken Grotesk',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--body);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(900px 600px at 80% -10%,rgba(212,175,55,.13),transparent 60%),radial-gradient(800px 600px at 10% 10%,rgba(120,98,200,.08),transparent 55%);}
+  .wrap{max-width:1100px;margin:0 auto;padding:64px 28px}
+  .eyebrow{font-family:var(--wordmark);text-transform:uppercase;letter-spacing:.28em;font-size:.72rem;color:var(--gold);font-weight:500}
+  h1{font-family:var(--display);font-weight:500;font-size:clamp(2.2rem,5vw,3.4rem);margin:14px 0 8px;letter-spacing:-.01em}
+  h2{font-family:var(--display);font-weight:500;font-size:1.9rem;margin:64px 0 8px}
+  .sub{color:var(--muted);max-width:620px}
+  .hint{color:var(--faint);font-size:.9rem;margin-top:8px}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;margin-top:34px}
+  .card{border:1px solid var(--line-soft);border-radius:18px;background:rgba(255,255,255,.025);padding:30px;transition:.3s}
+  .card:hover{border-color:var(--line);transform:translateY(-4px)}
+  .card .meta{display:flex;align-items:center;gap:12px;margin-top:22px}
+  .num{font-family:var(--wordmark);font-size:.7rem;letter-spacing:.16em;color:var(--gold);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+  .card h3{font-family:var(--body);font-weight:700;font-size:1.15rem}
+  .card p{color:var(--muted);font-size:.9rem;margin-top:6px}
+  .rec{background:rgba(212,175,55,.12);border:1px solid var(--line);color:var(--gold-bright);font-size:.62rem;
+    font-family:var(--wordmark);letter-spacing:.14em;padding:3px 8px;border-radius:6px;text-transform:uppercase}
+
+  .show{display:flex;align-items:center;gap:28px;flex-wrap:wrap}
+  .tile{width:128px;height:128px;border-radius:30px;flex-shrink:0;display:grid;place-items:center;
+    background:radial-gradient(120% 120% at 30% 20%,#16131c,#08080b 70%);
+    border:1px solid var(--line);box-shadow:0 18px 40px -22px rgba(212,175,55,.4),inset 0 1px 0 rgba(255,255,255,.06)}
+  .tile svg{width:78px;height:78px}
+  .lockup{display:flex;align-items:center;gap:14px}
+  .lockup svg{width:42px;height:42px}
+  .lockup .wm{font-family:var(--wordmark);font-weight:600;letter-spacing:.2em;font-size:1.5rem;text-transform:uppercase}
+
+  /* palette */
+  .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:26px}
+  .sw{border:1px solid var(--line-soft);border-radius:12px;overflow:hidden}
+  .sw .chip{height:78px}
+  .sw .lbl{padding:11px 13px;font-size:.82rem}
+  .sw .lbl b{display:block;font-weight:600}.sw .lbl span{color:var(--faint);font-family:var(--body)}
+
+  /* type */
+  .type{display:flex;flex-direction:column;gap:22px;margin-top:26px}
+  .trow{border:1px solid var(--line-soft);border-radius:14px;padding:24px 28px}
+  .trow .role{font-size:.74rem;color:var(--gold);letter-spacing:.16em;text-transform:uppercase;font-family:var(--wordmark)}
+  .specimen-w{font-family:var(--wordmark);font-size:2rem;letter-spacing:.2em;margin-top:10px}
+  .specimen-d{font-family:var(--display);font-size:2.2rem;margin-top:6px}
+  .specimen-b{font-family:var(--body);font-size:1.1rem;margin-top:8px;color:var(--muted)}
+
+  /* ---- mark animations ---- */
+  .draw{stroke-dasharray:260;stroke-dashoffset:260;animation:draw 2.2s ease forwards}
+  .draw.d2{animation-delay:.5s}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  .pulse-node{transform-origin:center;animation:pn 1.8s ease-in-out infinite}
+  @keyframes pn{0%,100%{opacity:.5;transform:scale(.8)}50%{opacity:1;transform:scale(1.25)}}
+  .twinkle{transform-origin:center;animation:tw 2.4s ease-in-out infinite}
+  .twinkle.b{animation-delay:.8s}.twinkle.c{animation-delay:1.5s}
+  @keyframes tw{0%,100%{opacity:.35;transform:scale(.7)}50%{opacity:1;transform:scale(1.1)}}
+  .spin{transform-origin:50px 50px;animation:spin 9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .fly{animation:fly 4s ease-in-out infinite}
+  @keyframes fly{0%,100%{transform:translate(0,0)}50%{transform:translate(4px,-5px)}}
+  .trailp{animation:trail 4s ease-in-out infinite}
+  @keyframes trail{0%,100%{opacity:.25}50%{opacity:.6}}
+  .spark{transform-origin:center;animation:spk 2.6s ease-in-out infinite}
+  @keyframes spk{0%,100%{opacity:.5;transform:scale(.8) rotate(0)}50%{opacity:1;transform:scale(1.15) rotate(45deg)}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important}.draw{stroke-dashoffset:0}}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}.show{gap:18px}}
+</style>
+</head>
+<body>
+<!-- shared gold gradient -->
+<svg width="0" height="0" style="position:absolute"><defs>
+  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#f4dd95"/><stop offset=".5" stop-color="#d4af37"/><stop offset="1" stop-color="#9c7a2e"/>
+  </linearGradient></defs></svg>
+
+<div class="wrap">
+  <p class="eyebrow">Senani · Brand Kit v2</p>
+  <h1>Email, run by a team of agents.</h1>
+  <p class="sub">Four marks that fuse <b style="color:var(--ink)">the inbox</b> with <b style="color:var(--ink)">a formation of AI agents</b> — gold on obsidian, animated. Pick a direction and I'll finalize it into the app icon, the site, and the README.</p>
+  <p class="hint">↓ Each mark is live-animated. Hover a card.</p>
+
+  <div class="grid">
+
+    <!-- 1 — Constellation Envelope -->
+    <div class="card">
+      <div class="show">
+        <div class="tile">
+          <svg viewBox="0 0 100 100">
+            <g fill="none" stroke="url(#gold)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect class="draw" x="18" y="30" width="64" height="42" rx="4"/>
+              <path class="draw d2" d="M18 33 L50 55 L82 33"/>
+            </g>
+            <g fill="url(#gold)">
+              <circle class="twinkle" cx="18" cy="30" r="3.4"/><circle class="twinkle b" cx="82" cy="30" r="3.4"/>
+              <circle class="twinkle c" cx="18" cy="72" r="3.4"/><circle class="twinkle" cx="82" cy="72" r="3.4"/>
+              <circle class="pulse-node" cx="50" cy="55" r="4.4"/>
+            </g>
+          </svg>
+        </div>
+        <div class="lockup">
+          <svg viewBox="0 0 100 100"><g fill="none" stroke="url(#gold)" stroke-width="3" stroke-linejoin="round"><rect x="18" y="30" width="64" height="42" rx="4"/><path d="M18 33 50 55 82 33"/></g><circle cx="50" cy="55" r="5" fill="url(#gold)"/></svg>
+          <span class="wm">Senani</span>
+        </div>
+      </div>
+      <div class="meta"><span class="num">01</span><h3>Constellation Envelope</h3><span class="rec">Recommended</span></div>
+      <p>An envelope drawn from gold nodes — each corner an agent, the center a pulsing "active" agent. Email + a team + the night sky, in one mark. Lines draw in on load.</p>
+    </div>
+
+    <!-- 2 — Squadron (paper planes) -->
+    <div class="card">
+      <div class="show">
+        <div class="tile">
+          <svg viewBox="0 0 100 100">
+            <g class="fly">
+              <path fill="url(#gold)" d="M14 86 L90 24 L52 80 L46 60 Z"/>
+              <path fill="url(#gold)" opacity=".95" d="M46 60 L52 80 L66 54 Z"/>
+            </g>
+            <path class="trailp" fill="url(#gold)" opacity=".4" d="M10 64 L40 40 L25 60 L22 52 Z"/>
+            <path class="trailp" style="animation-delay:.6s" fill="url(#gold)" opacity=".3" d="M16 44 L40 26 L29 42 L27 36 Z"/>
+          </svg>
+        </div>
+        <div class="lockup">
+          <svg viewBox="0 0 100 100"><path fill="url(#gold)" d="M14 86 L90 24 L52 80 L46 60 Z"/><path fill="url(#gold)" opacity=".9" d="M46 60 L52 80 L66 54 Z"/></svg>
+          <span class="wm">Senani</span>
+        </div>
+      </div>
+      <div class="meta"><span class="num">02</span><h3>Squadron</h3></div>
+      <p>A lead paper-plane with its formation trailing in a V — an army of agents sending your mail. The most literal "agentic email." Planes drift in flight.</p>
+    </div>
+
+    <!-- 3 — Orbit (envelope + agents) -->
+    <div class="card">
+      <div class="show">
+        <div class="tile">
+          <svg viewBox="0 0 100 100">
+            <ellipse cx="50" cy="50" rx="42" ry="18" transform="rotate(-22 50 50)" fill="none" stroke="var(--line)" stroke-width="1.6"/>
+            <g class="spin">
+              <g transform="rotate(-22 50 50)">
+                <circle cx="92" cy="50" r="3.6" fill="url(#gold)"/>
+                <circle cx="22" cy="42" r="3" fill="url(#gold)" opacity=".85"/>
+                <circle cx="64" cy="64" r="2.6" fill="url(#gold)" opacity=".7"/>
+              </g>
+            </g>
+            <g fill="none" stroke="url(#gold)" stroke-width="2.6" stroke-linejoin="round">
+              <rect x="34" y="40" width="32" height="22" rx="3"/><path d="M34 41 50 52 66 41"/>
+            </g>
+          </svg>
+        </div>
+        <div class="lockup">
+          <svg viewBox="0 0 100 100"><ellipse cx="50" cy="50" rx="42" ry="18" transform="rotate(-22 50 50)" fill="none" stroke="url(#gold)" stroke-width="2"/><g fill="none" stroke="url(#gold)" stroke-width="3" stroke-linejoin="round"><rect x="34" y="40" width="32" height="22" rx="3"/><path d="M34 41 50 52 66 41"/></g></svg>
+          <span class="wm">Senani</span>
+        </div>
+      </div>
+      <div class="meta"><span class="num">03</span><h3>Agent Orbit</h3></div>
+      <p>Your inbox at the core, a team of agents orbiting it — always working around your mail. The agent-dots orbit continuously.</p>
+    </div>
+
+    <!-- 4 — Spark Envelope -->
+    <div class="card">
+      <div class="show">
+        <div class="tile">
+          <svg viewBox="0 0 100 100">
+            <g fill="none" stroke="url(#gold)" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="16" y="34" width="58" height="40" rx="4"/><path d="M16 37 45 57 74 37"/>
+            </g>
+            <path class="spark" fill="url(#gold)" d="M80 14 L84 27 L97 31 L84 35 L80 48 L76 35 L63 31 L76 27 Z"/>
+          </svg>
+        </div>
+        <div class="lockup">
+          <svg viewBox="0 0 100 100"><g fill="none" stroke="url(#gold)" stroke-width="3" stroke-linejoin="round"><rect x="16" y="34" width="58" height="40" rx="4"/><path d="M16 37 45 57 74 37"/></g><path fill="url(#gold)" d="M80 14 L84 27 L97 31 L84 35 L80 48 L76 35 L63 31 L76 27 Z"/></svg>
+          <span class="wm">Senani</span>
+        </div>
+      </div>
+      <div class="meta"><span class="num">04</span><h3>Spark Envelope</h3></div>
+      <p>A clean envelope with an AI spark — minimal, instantly legible at any size, the strongest pure app-icon. The spark twinkles.</p>
+    </div>
+
+  </div>
+
+  <h2>Colour</h2>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#08080b"></div><div class="lbl"><b>Obsidian</b><span>#08080B</span></div></div>
+    <div class="sw"><div class="chip" style="background:#16131c"></div><div class="lbl"><b>Slate</b><span>#16131C</span></div></div>
+    <div class="sw"><div class="chip" style="background:linear-gradient(135deg,#f4dd95,#d4af37,#9c7a2e)"></div><div class="lbl"><b>Gold (gradient)</b><span>#D4AF37</span></div></div>
+    <div class="sw"><div class="chip" style="background:#f4dd95"></div><div class="lbl"><b>Gold Bright</b><span>#F4DD95</span></div></div>
+    <div class="sw"><div class="chip" style="background:#e8c97a"></div><div class="lbl"><b>Champagne</b><span>#E8C97A</span></div></div>
+    <div class="sw"><div class="chip" style="background:#ece7dc"></div><div class="lbl"><b>Ink</b><span>#ECE7DC</span></div></div>
+  </div>
+
+  <h2>Type</h2>
+  <div class="type">
+    <div class="trow"><div class="role">Wordmark — Cinzel</div><div class="specimen-w">SENANI</div></div>
+    <div class="trow"><div class="role">Display — Fraunces</div><div class="specimen-d">Works while you <em style="font-style:italic">sleep</em>.</div></div>
+    <div class="trow"><div class="role">Body / UI — Hanken Grotesk</div><div class="specimen-b">A private army of AI agents that runs your inbox — entirely on your Mac.</div></div>
+  </div>
+</div>
+</body>
+</html>
