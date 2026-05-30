@@ -16,6 +16,8 @@ public struct RuleEngine: Sendable {
     private let evaluator: PredicateEvaluator
     public init(evaluator: PredicateEvaluator) { self.evaluator = evaluator }
 
+    /// Matches `message` against `rules`. Callers are responsible for pre-filtering
+    /// `rules` by `runOn` (incoming/existing/both); the engine evaluates whatever list it is given.
     public func match(message: Message, rules: [Rule], now: Date) async -> [RuleMatch] {
         // 1. Structured pass (pure Swift) over enabled rules.
         let structurallyMatched = rules.filter {
@@ -28,12 +30,18 @@ public struct RuleEngine: Sendable {
             return (rule, p)
         }
 
-        // 3. At most one batched model call for this message.
+        // 3. At most one batched model call for this message. Deduplicate predicate
+        //    texts (preserving order for determinism) so each unique predicate is
+        //    evaluated exactly once and the string-keyed verdict map can't collide.
         var verdicts: [String: Bool] = [:]
         if !pending.isEmpty {
-            let predicates = pending.map(\.1)
-            let results = await evaluator.evaluate(predicates: predicates, against: message)
-            for (i, predicate) in predicates.enumerated() where i < results.count {
+            var uniquePredicates: [String] = []
+            for (_, predicate) in pending where !uniquePredicates.contains(predicate) {
+                uniquePredicates.append(predicate)
+            }
+            let results = await evaluator.evaluate(predicates: uniquePredicates, against: message)
+            assert(results.count == uniquePredicates.count)
+            for (i, predicate) in uniquePredicates.enumerated() where i < results.count {
                 verdicts[predicate] = results[i]
             }
         }

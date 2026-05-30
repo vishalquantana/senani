@@ -51,6 +51,7 @@ public struct Conditions: Sendable, Equatable {
 
     /// Evaluates ONLY the structured conditions. The AI predicate is handled by the engine.
     /// Empty structured + `.all` is vacuously true so pure-AI rules can reach their predicate.
+    /// Empty-set behavior across modes: `.all` -> true, `.any` -> false, `.none` -> true.
     public func matchesStructured(_ m: Message, now: Date) -> Bool {
         switch mode {
         case .all:  return structured.allSatisfy { $0.matches(m, now: now) }

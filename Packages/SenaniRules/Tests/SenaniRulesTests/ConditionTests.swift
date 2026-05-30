@@ -37,6 +37,11 @@ import Foundation
         #expect(!StructuredCondition.olderThan(60).matches(msg(ageSeconds: 30), now: now))
     }
 
+    @Test func olderThanIsExclusiveAtBoundary() {
+        // A message exactly `secs` old is NOT older-than (exclusive `>`).
+        #expect(!StructuredCondition.olderThan(60).matches(msg(ageSeconds: 60), now: now))
+    }
+
     @Test func matchModeAllRequiresEveryCondition() {
         let c = Conditions(mode: .all,
             structured: [.domain("vendor.com"), .hasAttachment], aiPredicate: nil)
@@ -61,5 +66,14 @@ import Foundation
     @Test func emptyStructuredIsVacuouslyTrueUnderAll() {
         let c = Conditions(mode: .all, structured: [], aiPredicate: "is about pricing")
         #expect(c.matchesStructured(msg(), now: now)) // lets a pure-AI rule reach its predicate
+    }
+
+    @Test func emptyStructuredSemanticsUnderAnyAndNone() {
+        // `.any` over an empty set: no condition matches -> false.
+        let anyEmpty = Conditions(mode: .any, structured: [], aiPredicate: nil)
+        #expect(!anyEmpty.matchesStructured(msg(), now: now))
+        // `.none` over an empty set: no condition matches -> true.
+        let noneEmpty = Conditions(mode: .none, structured: [], aiPredicate: nil)
+        #expect(noneEmpty.matchesStructured(msg(), now: now))
     }
 }

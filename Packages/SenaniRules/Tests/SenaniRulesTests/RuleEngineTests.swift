@@ -3,7 +3,7 @@ import Foundation
 @testable import SenaniRules
 
 /// Records every batch call and returns scripted answers keyed by predicate text.
-final class SpyEvaluator: PredicateEvaluator, @unchecked Sendable {
+actor SpyEvaluator: PredicateEvaluator {
     let answers: [String: Bool]
     private(set) var calls: [[String]] = []
     init(answers: [String: Bool]) { self.answers = answers }
@@ -11,6 +11,7 @@ final class SpyEvaluator: PredicateEvaluator, @unchecked Sendable {
         calls.append(predicates)
         return predicates.map { answers[$0] ?? false }
     }
+    func recordedCalls() -> [[String]] { calls }
 }
 
 @Suite struct RuleEngineTests {
@@ -32,7 +33,7 @@ final class SpyEvaluator: PredicateEvaluator, @unchecked Sendable {
         let r = rule("a", Conditions(mode: .all, structured: [.domain("vendor.com")], aiPredicate: nil))
         let matches = await engine.match(message: msg(), rules: [r], now: now)
         #expect(matches.map(\.rule.id) == ["a"])
-        #expect(spy.calls.isEmpty) // model never called
+        #expect(await spy.recordedCalls().isEmpty) // model never called
     }
 
     @Test func disabledRulesAreSkipped() async {
@@ -52,8 +53,8 @@ final class SpyEvaluator: PredicateEvaluator, @unchecked Sendable {
         let r2 = rule("ai", Conditions(mode: .all, structured: [.domain("vendor.com")], aiPredicate: "is about pricing"))
         let matches = await engine.match(message: msg(), rules: [r1, r2], now: now)
         #expect(matches.map(\.rule.id) == ["ai"])
-        #expect(spy.calls.count == 1)                 // exactly one batched call
-        #expect(spy.calls.first == ["is about pricing"]) // failed rule's predicate excluded
+        #expect(await spy.recordedCalls().count == 1)                 // exactly one batched call
+        #expect(await spy.recordedCalls().first == ["is about pricing"]) // failed rule's predicate excluded
     }
 
     @Test func predicateFalseRejectsRuleEvenIfStructuralPasses() async {
@@ -69,6 +70,26 @@ final class SpyEvaluator: PredicateEvaluator, @unchecked Sendable {
         let engine = RuleEngine(evaluator: spy)
         let r = rule("a", Conditions(mode: .all, structured: [.hasAttachment], aiPredicate: nil))
         _ = await engine.match(message: msg(attach: false), rules: [r], now: now)
-        #expect(spy.calls.isEmpty)
+        #expect(await spy.recordedCalls().isEmpty)
+    }
+
+    @Test func identicalPredicateFromTwoRulesIsDedupedAndBothMatch() async {
+        let spy = SpyEvaluator(answers: ["is about pricing": true])
+        let engine = RuleEngine(evaluator: spy)
+        let r1 = rule("one", Conditions(mode: .all, structured: [.domain("vendor.com")], aiPredicate: "is about pricing"))
+        let r2 = rule("two", Conditions(mode: .all, structured: [.hasAttachment], aiPredicate: "is about pricing"))
+        let matches = await engine.match(message: msg(), rules: [r1, r2], now: now)
+        #expect(matches.map(\.rule.id) == ["one", "two"])     // both rules match
+        #expect(await spy.recordedCalls().count == 1)         // single batched call
+        #expect(await spy.recordedCalls().first == ["is about pricing"]) // deduped to one entry
+    }
+
+    @Test func identicalPredicateFalseRejectsBothRules() async {
+        let spy = SpyEvaluator(answers: ["is about pricing": false])
+        let engine = RuleEngine(evaluator: spy)
+        let r1 = rule("one", Conditions(mode: .all, structured: [.domain("vendor.com")], aiPredicate: "is about pricing"))
+        let r2 = rule("two", Conditions(mode: .all, structured: [.hasAttachment], aiPredicate: "is about pricing"))
+        let matches = await engine.match(message: msg(), rules: [r1, r2], now: now)
+        #expect(matches.isEmpty) // both rejected
     }
 }
