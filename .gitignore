@@ -1,0 +1,62 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Xcode
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+!*.xcodeproj/xcshareddata/
+!*.xcworkspace/contents.xcworkspacedata
+**/xcshareddata/WorkspaceSettings.xcsettings
+*.xcuserstate
+xcuserdata/
+DerivedData/
+build/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# CocoaPods / Carthage (if ever used)
+Pods/
+Carthage/Build/
+
+# Secrets & local config — NEVER commit these
+*.xcconfig.local
+secrets.plist
+.env
+.env.*
+GoogleService-Info.plist
+client_secret*.json
+*.p8
+*.p12
+*.mobileprovision
+
+# Local model weights (downloaded at runtime, large)
+Models/
+*.gguf
+*.safetensors
+*.mlx
+
+# Local database / user data
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Logs & misc
+*.log
+.idea/
+.vscode/
+
+# Superpowers brainstorming workspace (transient, never publish)
+.superpowers/

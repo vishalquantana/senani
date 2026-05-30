@@ -1,0 +1,43 @@
+name: Release
+
+# Builds and publishes the macOS app when a version tag is pushed.
+#
+# ⚠️ Pre-alpha scaffold: the actual Xcode build steps are stubbed until the app
+# project exists (Phase 0/1). Pushing a `v*` tag today will create a GitHub
+# Release from the tag; the signed .dmg is attached once the build steps below
+# are wired up.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- TODO (Phase 0/1): build, sign, notarize ---
+      # - name: Select Xcode
+      #   run: sudo xcode-select -s /Applications/Xcode_16.app
+      # - name: Build
+      #   run: xcodebuild -scheme Senani -configuration Release archive ...
+      # - name: Code sign & notarize
+      #   run: ./scripts/notarize.sh
+      # - name: Package .dmg
+      #   run: ./scripts/make_dmg.sh
+      - name: Placeholder build step
+        run: echo "Build steps land in Phase 0/1. See docs/ROADMAP.md."
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          # files: dist/Senani-*.dmg   # uncomment once builds are produced
