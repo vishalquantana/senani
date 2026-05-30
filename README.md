@@ -1,7 +1,8 @@
 <div align="center">
 
-<!-- TODO: replace with the gold-on-obsidian logo once the visual identity is rendered -->
-<h1>⟢ Senani</h1>
+<img src="assets/senani-logo.svg" alt="Senani" width="104" height="104" />
+
+<h1>Senani</h1>
 
 ### A private army of AI agents that works while you sleep — completely offline.
 
