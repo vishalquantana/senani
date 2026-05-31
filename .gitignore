@@ -38,15 +38,19 @@ secrets.plist
 .env.*
 GoogleService-Info.plist
 client_secret*.json
+*.client_secret*.json
+SenaniApp/Config/oauth.plist
 *.p8
 *.p12
 *.mobileprovision
 
 # Local model weights (downloaded at runtime, large)
 Models/
+Packages/SenaniInference/Vendor/
 *.gguf
 *.safetensors
 *.mlx
+*.metallib
 
 # Local database / user data
 *.sqlite
@@ -60,3 +64,4 @@ Models/
 
 # Superpowers brainstorming workspace (transient, never publish)
 .superpowers/
+SenaniApp/Sources/SenaniApp/Config.swift

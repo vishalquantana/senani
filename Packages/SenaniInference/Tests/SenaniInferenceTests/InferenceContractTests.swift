@@ -78,6 +78,7 @@ import Testing
     @Test func mlxTypesConstructAndThrowWithoutModelPath() async {
         let generator = MLXTextGenerator(modelPath: "/definitely/missing")
         let embedder = MLXEmbedder(modelPath: "/definitely/missing")
+        let embeddingGemma = EmbeddingGemmaEmbedder(modelPath: "/definitely/missing")
 
         await #expect(throws: InferenceError.modelNotLoaded) {
             _ = try await generator.generate(prompt: "hello", maxTokens: 1)
@@ -88,6 +89,49 @@ import Testing
         await #expect(throws: InferenceError.modelNotLoaded) {
             _ = try await embedder.embed("hello")
         }
+        await #expect(throws: InferenceError.modelNotLoaded) {
+            _ = try await embeddingGemma.embed("hello")
+        }
+    }
+
+    @Test func embeddingGemmaConfigurationPinsExpectedModelContract() {
+        #expect(EmbeddingGemmaConfiguration.defaultModelID == "mlx-community/embeddinggemma-300m-4bit")
+        #expect(EmbeddingGemmaConfiguration.upstreamModelID == "google/embeddinggemma-300m")
+        #expect(EmbeddingGemmaConfiguration.contextTokenLimit == 2_048)
+        #expect(EmbeddingDimension.allCases.map(\.rawValue) == [768, 512, 256, 128])
+    }
+
+    @Test func embeddingVectorTruncatesAndNormalizesMRLDimensions() {
+        let vector = Array(repeating: Float(1), count: 768)
+        let truncated = EmbeddingVector.truncateAndNormalize(vector, dimension: .mrl128)
+        #expect(truncated.count == 128)
+        let norm = truncated.reduce(Float(0)) { $0 + $1 * $1 }.squareRoot()
+        #expect(abs(norm - 1) < 0.0001)
+    }
+
+    @Test func embeddingGemmaWrapperDelegatesAndPostProcesses() async throws {
+        let backend = FakeEmbedder(vector: Array(repeating: Float(2), count: 768))
+        let embedder = EmbeddingGemmaEmbedder(
+            configuration: EmbeddingGemmaConfiguration(
+                modelPath: "/tmp/embeddinggemma",
+                outputDimension: .mrl256
+            ),
+            backend: backend
+        )
+        let vector = try await embedder.embed("hello")
+        #expect(vector.count == 256)
+        #expect(backend.embedded == ["hello"])
+    }
+
+    @Test func embeddingGemmaWrapperTruncatesInputToContextLimit() async throws {
+        let backend = FakeEmbedder(vector: Array(repeating: Float(1), count: 768))
+        let embedder = EmbeddingGemmaEmbedder(
+            configuration: EmbeddingGemmaConfiguration(modelPath: "/tmp/embeddinggemma"),
+            backend: backend
+        )
+        let longText = Array(repeating: "word", count: 2_100).joined(separator: " ")
+        _ = try await embedder.embed(longText)
+        #expect(backend.embedded.first?.split(whereSeparator: \.isWhitespace).count == 2_048)
     }
 
     static func message(body: String = "Body") -> Message {
