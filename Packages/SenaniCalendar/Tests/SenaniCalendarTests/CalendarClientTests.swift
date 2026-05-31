@@ -55,6 +55,26 @@ private func range() -> DateRange {
     #expect(busy.first?.start == CalendarHTTP.date(from: "2023-11-15T09:00:00Z"))
 }
 
+@Test func listEventsParsesFractionalSecondTimestamps() async throws {
+    let http = FakeHTTPClient()
+    await http.enqueueJSON(CalFix.eventsFractionalJSON)
+    let client = CalendarClient(http: http, tokenProvider: StubTokenProvider(token: "T"))
+    let events = try await client.listEvents(range: range())
+    // The fractional-second event must parse and count as busy (not be compactMap-dropped).
+    #expect(events.map(\.id) == ["e1"])
+    #expect(events.first?.start == CalendarHTTP.date(from: "2023-11-15T09:00:00Z"))
+    #expect(events.first?.end == CalendarHTTP.date(from: "2023-11-15T09:30:00Z"))
+}
+
+@Test func dateParsesBothPlainAndFractionalSeconds() {
+    // Plain RFC3339 still works...
+    #expect(CalendarHTTP.date(from: "2023-11-15T09:00:00Z") != nil)
+    // ...and fractional/millisecond variants now parse too.
+    #expect(CalendarHTTP.date(from: "2023-11-15T09:00:00.000Z") != nil)
+    #expect(CalendarHTTP.date(from: "2023-11-15T09:00:00.000Z")
+            == CalendarHTTP.date(from: "2023-11-15T09:00:00Z"))
+}
+
 @Test func freeBusyThrowsOnHTTPError() async throws {
     let http = FakeHTTPClient()
     await http.enqueueJSON(#"{"error":"forbidden"}"#, status: 403)
