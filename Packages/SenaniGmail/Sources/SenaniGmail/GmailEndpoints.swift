@@ -45,6 +45,16 @@ public enum GmailEndpoints {
         return authorizedRequest(url: components.url!, method: "GET", accessToken: accessToken)
     }
 
+    public static func getAttachment(messageId: String, attachmentId: String, accessToken: String) -> URLRequest {
+        let url = baseURL
+            .appendingPathComponent("messages")
+            .appendingPathComponent(messageId)
+            .appendingPathComponent("attachments")
+            .appendingPathComponent(attachmentId)
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        return authorizedRequest(url: components.url!, method: "GET", accessToken: accessToken)
+    }
+
     public static func createDraft(rawBase64URL: String, accessToken: String) -> URLRequest {
         var request = authorizedRequest(path: "drafts", method: "POST", accessToken: accessToken)
         setJSONBody(["message": ["raw": rawBase64URL]], on: &request)
