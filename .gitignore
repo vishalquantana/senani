@@ -69,3 +69,5 @@ SenaniApp/Sources/SenaniApp/Config.swift
 # Generated signing/packaging artifacts
 Scripts/Senani.icns
 dist/
+*.key
+senani-license-private.key
