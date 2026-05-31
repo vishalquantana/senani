@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- MLX/Metal JIT-compiles compute kernels at runtime. Required under the
+         hardened runtime; without it the JIT pages are killed. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+
+    <!-- Outbound HTTPS to Gmail + Google Calendar APIs and Hugging Face model
+         downloads. Client only; the app runs no server. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- INTENTIONALLY ABSENT: app-sandbox (Developer ID, not MAS),
+         network.server (no listening socket), allow-unsigned-executable-memory
+         and disable-library-validation (allow-jit suffices for MLX), and any
+         telemetry/analytics entitlement (there is none, by design). -->
+</dict>
+</plist>
