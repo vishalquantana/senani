@@ -33,10 +33,11 @@ public struct ReplyIntentClassifier: Sendable {
         - "negotiate": the client wants changes, a lower price, or more discussion.
         - "other": anything else / unclear.
 
+        \(PromptFencing.preamble)
+
         From: \(reply.from)
-        Subject: \(reply.subject)
-        Body:
-        \(reply.body)
+        \(PromptFencing.fence("SUBJECT", reply.subject))
+        \(PromptFencing.fence("BODY", reply.body))
         """
     }
 

@@ -100,7 +100,9 @@ public struct BookingAgent: Agent {
         Write a brief, friendly reply offering these meeting times (in my voice). \
         Keep it to two short sentences and do NOT invent times.
 
-        Their message subject: \(message.subject)
+        \(PromptFencing.preamble)
+
+        \(PromptFencing.fence("THEIR SUBJECT", message.subject))
         Proposed times:
         \(renderSlotLines(slots))
         """

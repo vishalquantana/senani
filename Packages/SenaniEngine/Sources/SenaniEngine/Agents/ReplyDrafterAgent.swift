@@ -51,13 +51,15 @@ public struct ReplyDrafterAgent: Agent {
         var lines: [String] = []
         lines.append(voicePrefix)
         lines.append("")
+        lines.append(PromptFencing.preamble)
+        lines.append("")
         lines.append("THREAD (oldest first):")
         let ordered = thread.sorted { $0.date < $1.date }
         for m in ordered {
             let who = m.isFromUser ? "Me" : m.from
             lines.append("From: \(who)")
-            if !m.subject.isEmpty { lines.append("Subject: \(m.subject)") }
-            lines.append(m.body)
+            if !m.subject.isEmpty { lines.append(PromptFencing.fence("SUBJECT", m.subject)) }
+            lines.append(PromptFencing.fence("BODY", m.body))
             lines.append("---")
         }
         lines.append("")

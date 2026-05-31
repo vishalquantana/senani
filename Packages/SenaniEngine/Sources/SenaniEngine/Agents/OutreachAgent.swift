@@ -92,11 +92,13 @@ public struct OutreachAgent: Agent {
             lines.append("")
         }
         if !target.thread.isEmpty {
+            lines.append(PromptFencing.preamble)
+            lines.append("")
             lines.append("PRIOR THREAD (oldest first):")
             for m in target.thread.sorted(by: { $0.date < $1.date }) {
                 let who = m.isFromUser ? "Me" : m.from
                 lines.append("From: \(who)")
-                lines.append(m.body)
+                lines.append(PromptFencing.fence("BODY", m.body))
                 lines.append("---")
             }
             lines.append("")

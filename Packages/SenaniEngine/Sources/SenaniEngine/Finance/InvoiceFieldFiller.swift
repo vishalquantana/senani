@@ -45,8 +45,9 @@ public struct InvoiceFieldFiller: Sendable {
         vendor, invoice_number, amount, currency, due_date (ISO YYYY-MM-DD).
         Use a JSON string value per field; omit a key if not present. Do not invent values.
 
-        DOCUMENT TEXT:
-        \(text)
+        \(PromptFencing.preamble)
+
+        \(PromptFencing.fence("DOCUMENT TEXT", text))
         """
     }
 

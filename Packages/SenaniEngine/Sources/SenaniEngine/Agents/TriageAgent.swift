@@ -35,10 +35,12 @@ public struct TriageAgent: Agent {
         "priority": <one of: \(priorities)>, "reason": <one short sentence>}.
         Choose exactly one category and one priority from the lists. Do not invent values.
 
+        \(PromptFencing.preamble)
+
         EMAIL
         From: \(message.from)
-        Subject: \(message.subject)
-        Body: \(snippet)
+        \(PromptFencing.fence("SUBJECT", message.subject))
+        \(PromptFencing.fence("BODY", snippet))
         """
     }
 }

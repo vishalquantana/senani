@@ -89,10 +89,12 @@ public struct LeadQualifierAgent: Agent {
         40-69 = warm (evaluating, genuine interest), 0-39 = cold (vague, info-only, or not a real lead).
         Choose exactly one intent from the list. Do not invent fields or values.
 
+        \(PromptFencing.preamble)
+
         EMAIL
         From: \(message.from)
-        Subject: \(message.subject)
-        Body: \(snippet)
+        \(PromptFencing.fence("SUBJECT", message.subject))
+        \(PromptFencing.fence("BODY", snippet))
         """
     }
 }
