@@ -90,6 +90,47 @@ import SenaniStore
         #expect(report.pendingApprovals == 1)
     }
 
+    @Test func buildForPastDayExcludesLaterDaysRows() throws {
+        // FINDING 1: replyLatency / ruleActivity use an unbounded `since:` floor,
+        // so building for a PAST day must NOT fold in rows from later days.
+        let db = try DigestFixture.makeDatabase()
+        let messages = SenaniStore.MessageStore(database: db)
+
+        // ---- DAY 1 (the past day we build for) ----
+        // one inbound + a user reply 200s later => latency 200s, replyCount 1.
+        try messages.saveAll([
+            DigestFixture.message(id: "d1m1", from: "alice@x.com", offset: 100, isFromUser: false, threadId: "t1"),
+            DigestFixture.message(id: "d1m2", from: "me@self.com", offset: 300, isFromUser: true,  threadId: "t1"),
+            // ---- DAY 2 (later day — must be excluded from DAY 1's digest) ----
+            DigestFixture.message(id: "d2m1", from: "bob@y.com",   offset: 86_400 + 100, isFromUser: false, threadId: "t2"),
+            DigestFixture.message(id: "d2m2", from: "me@self.com", offset: 86_400 + 110, isFromUser: true,  threadId: "t2"),
+        ])
+
+        // rule activity: 1 executed on DAY 1, plenty on DAY 2.
+        try DigestFixture.insertAction(db, ruleId: "triage", outcome: "executed", messageId: "d1m1", offset: 110)
+        try DigestFixture.insertAction(db, ruleId: "triage", outcome: "executed", messageId: "d2m1", offset: 86_400 + 120)
+        try DigestFixture.insertAction(db, ruleId: "triage", outcome: "executed", messageId: "d2m1", offset: 86_400 + 130)
+
+        let builder = DigestBuilder(
+            analytics: DigestFixture.analytics(db),
+            approvals: DigestFixture.approvals(db),
+            calendar: DigestFixture.utcCalendar,
+            topLimit: 5
+        )
+
+        // Build for DAY 1 (a past date relative to DAY 2's data).
+        let report = try builder.build(for: Date(timeIntervalSince1970: DigestFixture.dayStart + 50_000))
+
+        #expect(report.day == Date(timeIntervalSince1970: DigestFixture.dayStart))
+        // Only DAY 1's reply counts: latency 200s, count 1 (NOT folding in DAY 2's 10s reply).
+        #expect(report.medianReplyLatencySeconds == 200)
+        #expect(report.replyCount == 1)
+        // Only DAY 1's rule activity: 1 executed (NOT 3).
+        #expect(report.ruleActivity == [
+            RuleActivity(ruleId: "triage", executed: 1, prepared: 0, queuedForApproval: 0),
+        ])
+    }
+
     @Test func emptyDayYieldsZeroes() throws {
         let db = try DigestFixture.makeDatabase()
         let builder = DigestBuilder(
