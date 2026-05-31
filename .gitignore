@@ -65,3 +65,7 @@ Packages/SenaniInference/Vendor/
 # Superpowers brainstorming workspace (transient, never publish)
 .superpowers/
 SenaniApp/Sources/SenaniApp/Config.swift
+
+# Generated signing/packaging artifacts
+Scripts/Senani.icns
+dist/
