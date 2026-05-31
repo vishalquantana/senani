@@ -71,6 +71,9 @@ public final class AppEnvironment: ObservableObject {
     public let autonomySettings: AutonomySettingsStore
     public let autonomyForAgent: @Sendable (String) -> Autonomy
     public let spyBackend: SpyMailBackend
+    /// Last audit follow-up: read-only accessor for the dormant deals the Outreach screen lists.
+    /// Pure (no model call) — delegates to OutreachAgent.dormantTargets over the pipeline store.
+    public let dormantTargets: @Sendable () -> [OutreachTarget]
 
     @Published public var selectedItem: NavigationItem = .inbox
     @Published public var selectedMessageID: Message.ID?
@@ -85,7 +88,8 @@ public final class AppEnvironment: ObservableObject {
                  pipeline: any PipelineStore,
                  mailBackend: any MailBackend, autonomySettings: AutonomySettingsStore,
                  autonomyForAgent: @escaping @Sendable (String) -> Autonomy,
-                 spyBackend: SpyMailBackend) {
+                 spyBackend: SpyMailBackend,
+                 dormantTargets: @escaping @Sendable () -> [OutreachTarget]) {
         self.database = database
         self.messages = messages
         self.rules = rules
@@ -107,6 +111,7 @@ public final class AppEnvironment: ObservableObject {
         self.autonomySettings = autonomySettings
         self.autonomyForAgent = autonomyForAgent
         self.spyBackend = spyBackend
+        self.dormantTargets = dormantTargets
     }
 
     private func applyGenerator(_ gen: any TextGenerator) {
@@ -193,6 +198,7 @@ public final class AppEnvironment: ObservableObject {
             documentFields: documentFields, now: now)
 
         let spy = SpyMailBackend()
+        let dormantTargets = Self.makeDormantTargets(pipeline: pipeline, now: now)
 
         return AppEnvironment(database: database, messages: messages, rules: rules,
                               approvals: approvals, audit: audit, index: index,
@@ -203,7 +209,8 @@ public final class AppEnvironment: ObservableObject {
                               choices: choices, tier: tier,
                               pipeline: pipeline,
                               mailBackend: mailBackend, autonomySettings: settings,
-                              autonomyForAgent: autonomyForAgent, spyBackend: spy)
+                              autonomyForAgent: autonomyForAgent, spyBackend: spy,
+                              dormantTargets: dormantTargets)
     }
 
     public static func preview(now: @escaping @Sendable () -> Date = Date.init) -> AppEnvironment {
@@ -248,6 +255,8 @@ public final class AppEnvironment: ObservableObject {
             invoices: invoices, accountEmail: "preview@local", explicitAutonomy: explicitAutonomy,
             documentFields: { await FakeDocumentFieldsProvider().fields(for: $0) }, now: now)
 
+        let dormantTargets = Self.makeDormantTargets(pipeline: pipeline, now: now)
+
         return AppEnvironment(database: database, messages: messages, rules: rules,
                               approvals: approvals, audit: audit, index: index,
                               generator: generator, embedder: embedder, gmail: gmail,
@@ -257,7 +266,26 @@ public final class AppEnvironment: ObservableObject {
                               choices: choices, tier: tier,
                               pipeline: pipeline,
                               mailBackend: mailBackend, autonomySettings: settings,
-                              autonomyForAgent: autonomyForAgent, spyBackend: spy)
+                              autonomyForAgent: autonomyForAgent, spyBackend: spy,
+                              dormantTargets: dormantTargets)
+    }
+
+    /// Builds the read-only dormant-targets accessor. The OutreachAgent constructed here is used
+    /// ONLY for its pure `dormantTargets(in:now:)` query (no model/voice call happens), so the
+    /// generator/voice it carries are inert placeholders.
+    private static func makeDormantTargets(
+        pipeline: any PipelineStore,
+        now: @escaping @Sendable () -> Date
+    ) -> @Sendable () -> [OutreachTarget] {
+        return {
+            let reader = OutreachAgent(
+                generator: NotReadyTextGenerator(),
+                voice: VoiceConditionerPrefixProvider(
+                    conditioner: VoiceConditioner(embedder: FakeEmbedder(), index: InMemoryVectorIndex()),
+                    profile: VoiceProfile(scope: "global", averageSentenceWords: 15, greeting: "Hi",
+                                          signoff: "Best,", commonPhrases: [], emojiRate: 0)))
+            return (try? reader.dormantTargets(in: pipeline, now: now())) ?? []
+        }
     }
 
     private static func makeEngine(
@@ -346,6 +374,10 @@ public final class AppEnvironment: ObservableObject {
             invoices: invoices,
             // Finding 4: user-set autonomy dials override routing; unset agents keep their static dial.
             autonomy: explicitAutonomy,
+            // Last audit follow-up: wire the OutreachAgent + sender account so the user-initiated,
+            // list-driven outreach trigger (env.orchestrator.runOutreach) can draft + queue drafts.
+            outreachAgent: outreach,
+            account: { accountEmail },
             now: now)
         let scheduler = Scheduler(
             sync: sync, store: messages, orchestrator: orchestrator,

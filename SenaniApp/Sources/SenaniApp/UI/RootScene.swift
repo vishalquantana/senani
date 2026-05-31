@@ -32,6 +32,7 @@ struct RootScene: View {
         case .activity: ActivityLogView()
         case .settings: SettingsView()
         case .crm: PipelineView(deals: (try? env.pipeline.all()) ?? [])
+        case .outreach: OutreachView()
         }
     }
 
@@ -45,7 +46,7 @@ struct RootScene: View {
                 Text("Select a deal to view thread")
                     .foregroundStyle(.secondary)
             }
-        case .approvals, .activity, .settings:
+        case .approvals, .activity, .settings, .outreach:
             ZStack {
                 Color.senaniSurface.ignoresSafeArea()
                 Text("Select an item to view details")
