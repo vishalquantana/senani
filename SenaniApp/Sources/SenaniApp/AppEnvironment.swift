@@ -135,8 +135,18 @@ public final class AppEnvironment: ObservableObject {
 
         let http = URLSessionHTTPClient()
         let tokenStore: any TokenStore = KeychainTokenStore()
-        let gmail = GmailAuth(clientID: Config.googleClientID, http: http, store: tokenStore, now: now)
-        let accountEmail = Config.testEmail
+        // Resolve the OAuth client id from env → Info.plist → app-support file
+        // (GmailOAuthConfig), never from the gitignored Config struct. The
+        // shipped binary therefore embeds no client id or secret; a desktop
+        // PKCE flow needs no secret. If unconfigured we boot with an empty id —
+        // the data store still opens; the Gmail flow surfaces its own error
+        // until a client id is provided.
+        let clientID = (try? GmailOAuthConfig.clientID()) ?? ""
+        let gmail = GmailAuth(clientID: clientID, http: http, store: tokenStore, now: now)
+        // The connected account's address is discovered at runtime (via the
+        // OAuth flow / GmailAccountInfo); it is not baked into the shipped
+        // binary. Default to empty until an account is connected.
+        let accountEmail = ""
         let mailBackend = GmailMailBackend(http: http, tokenProvider: gmail, accountEmail: accountEmail)
         let sync = GmailSync(http: http, tokenProvider: gmail, accountEmail: accountEmail)
 
@@ -318,11 +328,6 @@ public final class AppEnvironment: ObservableObject {
             sync: sync, store: messages, orchestrator: orchestrator,
             interval: 300, now: now)
         return (orchestrator, scheduler)
-    }
-
-    private static func liveClientID() -> String {
-        ProcessInfo.processInfo.environment["SENANI_GOOGLE_CLIENT_ID"]
-            ?? Config.googleClientID
     }
 
     public static let seededDeals: [Deal] = [
