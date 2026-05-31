@@ -130,6 +130,14 @@ spctl -a -vvv -t exec "${APP}"
 echo "==> re-verify signature post-staple"
 codesign --verify --deep --strict --verbose=2 "${APP}"
 
+# ---- 7. Sign appcast ----
+echo "==> Sign appcast"
+if [[ -n "${SENANI_SU_FEED_URL:-}" ]]; then
+    "${SCRIPT_DIR}/sign_appcast.sh" "${DIST}" "${SENANI_SU_FEED_URL}"
+else
+    echo "Skipping appcast signing (SENANI_SU_FEED_URL not set)"
+fi
+
 # ---- 7. optional: signed + notarized .dmg ----
 if [[ "${SENANI_MAKE_DMG:-0}" == "1" ]]; then
     DMG="${DIST}/Senani-${VERSION}.dmg"
