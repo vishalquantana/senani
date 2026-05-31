@@ -19,6 +19,10 @@ public actor Orchestrator {
     private let needsReplyProvider: @Sendable (Message) -> Bool
     private let documentFieldsProvider: @Sendable (Message) async -> [String: String]
     private let autonomyProvider: @Sendable (_ agentId: String) -> Autonomy?
+    // Last audit follow-up: the user-initiated, list-driven Outreach trigger. Defaulted so every
+    // existing caller compiles unchanged; when present, `runOutreach` uses it to draft per target.
+    private let outreachAgent: OutreachAgent?
+    private let accountProvider: @Sendable () -> String
     private let now: @Sendable () -> Date
 
     public init(registry: AgentRegistry,
@@ -40,6 +44,10 @@ public actor Orchestrator {
                 // Finding 4: injectable per-agent autonomy override. Returns nil to fall back to
                 // the agent's own static `autonomy`.
                 autonomy: @escaping @Sendable (_ agentId: String) -> Autonomy? = { _ in nil },
+                // Last audit follow-up: the OutreachAgent and the account address its drafts are
+                // sent FROM. Both defaulted so the existing app-tier callers compile unchanged.
+                outreachAgent: OutreachAgent? = nil,
+                account: @escaping @Sendable () -> String = { "" },
                 now: @escaping @Sendable () -> Date) {
         self.registry = registry
         self.triage = triage
@@ -56,6 +64,8 @@ public actor Orchestrator {
         self.needsReplyProvider = needsReply
         self.documentFieldsProvider = documentFields
         self.autonomyProvider = autonomy
+        self.outreachAgent = outreachAgent
+        self.accountProvider = account
         self.now = now
     }
 
@@ -138,6 +148,44 @@ public actor Orchestrator {
         await audit.record(ActionRecord(
             action: outreach.action, messageId: outreach.message.id, trigger: trigger, outcome: .queuedForApproval))
         return ProcessedOutcome(agentId: agentId, action: outreach.action, outcome: .queuedForApproval)
+    }
+
+    /// User-initiated, list-driven outreach (the last audit follow-up). For each target the app
+    /// hands in, this builds the AgentContext + AgentTools exactly the way `process` does
+    /// internally, asks the injected OutreachAgent to draft an `[OutreachProposal]`, then routes
+    /// each through `enqueueOutreach`. SINGLE SAFETY INVARIANT: outreach proposals are OUTBOUND, so
+    /// they are ALWAYS queued for approval and NEVER applied to the mail backend. Zero targets (or
+    /// no configured OutreachAgent) is a no-op.
+    @discardableResult
+    public func runOutreach(to targets: [OutreachTarget]) async throws -> [ProcessedOutcome] {
+        guard let agent = outreachAgent, !targets.isEmpty else { return [] }
+        let context = outreachContext()
+        let tools = AgentTools(generator: generator)
+        let proposals = try await agent.outreach(to: targets, context: context, tools: tools)
+        var outcomes: [ProcessedOutcome] = []
+        for proposal in proposals {
+            outcomes.append(try await enqueueOutreach(proposal, agentId: agent.id))
+        }
+        return outcomes
+    }
+
+    /// Account-scoped (not thread-scoped) context for the list-driven outreach path: there is no
+    /// inbound message, so we synthesize the same AgentContext shape `buildContext` produces.
+    private func outreachContext() -> AgentContext {
+        let embedder = self.embedder
+        let index = self.index
+        let retrieve: @Sendable (_ query: String, _ k: Int) async throws -> [VectorHit] = { query, k in
+            let vector = try await embedder.embed(query)
+            return try index.search(vector: vector, k: k)
+        }
+        let allRules = (try? rules.all()) ?? []
+        return AgentContext(account: accountProvider(),
+                            thread: [],
+                            rules: allRules,
+                            retrieve: retrieve,
+                            now: now(),
+                            pipeline: pipeline,
+                            invoices: invoices)
     }
 
     // MARK: - Routing
