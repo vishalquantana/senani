@@ -57,16 +57,25 @@ public struct InvoiceFinanceAgent: Agent {
         }
 
         // 2. Persist (pure store write — never an Action).
+        // Writes happen inside `proposals` BY DESIGN (reconciliation §6); because the Orchestrator may
+        // re-tick the same message, this must be IDEMPOTENT. We preserve the existing `capturedAt` when
+        // the captured fields are unchanged (so the timestamp does not drift on a re-tick) and skip the
+        // upsert entirely when the resulting record is materially identical.
+        let recordId = Self.recordId(for: message, fields: fields)
+        let existing = try? context.invoices.fetch(id: recordId)
         let record = InvoiceRecord(
-            id: Self.recordId(for: message, fields: fields),
+            id: recordId,
             messageId: message.id,
             vendor: fields.vendor,
             invoiceNumber: fields.invoiceNumber,
             amount: fields.amount,
             currency: fields.currency,
             dueDate: fields.dueDate,
-            capturedAt: context.now)
-        try context.invoices.upsert(record)
+            capturedAt: Self.unchanged(existing, fields: fields, messageId: message.id)
+                ? (existing?.capturedAt ?? context.now) : context.now)
+        if existing != record {
+            try context.invoices.upsert(record)
+        }
 
         // 3. Labels.
         var actions: [Action] = [tools.proposeLabel(Self.invoiceLabel, on: message)]
@@ -87,6 +96,18 @@ public struct InvoiceFinanceAgent: Agent {
     func isDueSoon(_ dueDate: Date?, now: Date) -> Bool {
         guard let due = dueDate else { return false }
         return due >= now && due <= now.addingTimeInterval(dueSoonWindow)
+    }
+
+    /// True when an already-stored record carries the same captured fields (everything except the
+    /// `capturedAt` timestamp), so a re-tick should neither re-stamp nor re-write it.
+    static func unchanged(_ existing: InvoiceRecord?, fields: InvoiceFields, messageId: String) -> Bool {
+        guard let e = existing else { return false }
+        return e.messageId == messageId
+            && e.vendor == fields.vendor
+            && e.invoiceNumber == fields.invoiceNumber
+            && e.amount == fields.amount
+            && e.currency == fields.currency
+            && e.dueDate == fields.dueDate
     }
 
     static func recordId(for message: Message, fields: InvoiceFields) -> String {

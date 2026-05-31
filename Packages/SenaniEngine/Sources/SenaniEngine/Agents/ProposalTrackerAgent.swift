@@ -42,18 +42,26 @@ public struct ProposalTrackerAgent: Agent {
         guard !contact.isEmpty else { return [] }
 
         let existing = try context.pipeline.byContact(contact)
+        // Idempotency: the proposal's date/id are stable per message, so re-stamping is harmless to
+        // VALUES — but preserve the existing lastTouch/sourceMessageId when the material fields
+        // (stage/value) are unchanged so a re-tick yields a byte-identical Deal, then skip the
+        // redundant write. (Writes live in `proposals` by design per reconciliation §6.)
+        let value = signal.value ?? existing?.value
+        let unchanged = existing.map { $0.stage == .proposal && $0.value == value } ?? false
         let deal = Deal(
             id: existing?.id ?? contact,
             contactEmail: contact,
             company: existing?.company,
             stage: .proposal,
             score: existing?.score,
-            value: signal.value ?? existing?.value,
-            lastTouch: message.date,
-            sourceMessageId: message.id,
+            value: value,
+            lastTouch: unchanged ? (existing?.lastTouch ?? message.date) : message.date,
+            sourceMessageId: unchanged ? existing?.sourceMessageId : message.id,
             threadId: existing?.threadId ?? message.threadId
         )
-        try context.pipeline.upsert(deal)
+        if existing != deal {
+            try context.pipeline.upsert(deal)
+        }
         return []
     }
 
@@ -62,6 +70,9 @@ public struct ProposalTrackerAgent: Agent {
             return []
         }
         let stage = try await classifier.classify(reply: message)
+        // Idempotency: preserve lastTouch/sourceMessageId when the stage is unchanged so a re-tick on
+        // the same inbound reply produces a byte-identical Deal and the write below is skipped.
+        let unchanged = existing.stage == stage
         let updated = Deal(
             id: existing.id,
             contactEmail: existing.contactEmail,
@@ -69,11 +80,13 @@ public struct ProposalTrackerAgent: Agent {
             stage: stage,
             score: existing.score,
             value: existing.value,
-            lastTouch: message.date,
-            sourceMessageId: message.id,
+            lastTouch: unchanged ? existing.lastTouch : message.date,
+            sourceMessageId: unchanged ? existing.sourceMessageId : message.id,
             threadId: existing.threadId
         )
-        try context.pipeline.upsert(updated)
+        if existing != updated {
+            try context.pipeline.upsert(updated)
+        }
 
         switch stage {
         case .won:

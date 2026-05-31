@@ -72,6 +72,11 @@ public struct FollowUpAgent: Agent {
         let trimmedBody = body.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
 
         // Record the touch ONLY when we actually queue a nudge.
+        // Idempotency under re-processing: this write lives in `proposals` by design (reconciliation
+        // §6), but `Orchestrator.process` may re-tick the same message. The `wakesFor` guard above is
+        // what keeps the re-stamp from happening twice — once `lastTouch == context.now`, the per-deal
+        // cooldown in `StaleThreadScanner.isStale` makes the thread non-stale, so a re-tick at the same
+        // `now` returns early with no second nudge and no `lastTouch` drift.
         deal.lastTouch = context.now
         try pipelineTouch.upsert(deal)
         return [tools.followUpReply(to: message, body: trimmedBody)]

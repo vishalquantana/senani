@@ -35,10 +35,15 @@ public struct LeadQualifierAgent: Agent {
         let qualification = LeadQualification.parse(raw)
 
         // Side effect 1: record the Deal in the CRM pipeline (injected seam).
+        // Writes happen inside `proposals` BY DESIGN (reconciliation §6), but `Orchestrator.process`
+        // may re-tick the same message — so this upsert must be IDEMPOTENT. We skip the write when the
+        // freshly-built deal is materially identical to the stored one (no lastTouch drift, no churn).
+        let existing = try? context.pipeline.byContact(message.from)
         let deal = Self.makeDeal(for: message, qualification: qualification,
-                                 existing: try? context.pipeline.byContact(message.from),
-                                 now: context.now)
-        try context.pipeline.upsert(deal)
+                                 existing: existing, now: context.now)
+        if existing != deal {
+            try context.pipeline.upsert(deal)
+        }
 
         // Side effect 2 (via the Orchestrator): propose the reversible tier label.
         return [tools.proposeLabel(qualification.tier.label, on: message)]
@@ -46,17 +51,26 @@ public struct LeadQualifierAgent: Agent {
 
     /// Builds (or updates) the Deal. Deterministic id = contact email so re-qualifying the
     /// same sender updates the same Deal (upsert). Preserves an existing Deal's id/value.
+    ///
+    /// Idempotency: when the material fields (company/stage/score) are unchanged from `existing`,
+    /// we PRESERVE the existing `lastTouch` and `sourceMessageId` rather than re-stamping with `now` /
+    /// the current message — so a re-tick on the same lead produces a byte-identical Deal and the
+    /// caller's equality check skips the redundant write.
     static func makeDeal(for message: Message, qualification: LeadQualification,
                          existing: Deal?, now: Date) -> Deal {
-        Deal(
+        let company = qualification.company ?? existing?.company
+        let unchanged = existing.map {
+            $0.company == company && $0.stage == .qualified && $0.score == qualification.score
+        } ?? false
+        return Deal(
             id: existing?.id ?? message.from,
             contactEmail: message.from,
-            company: qualification.company ?? existing?.company,
+            company: company,
             stage: .qualified,
             score: qualification.score,
             value: existing?.value,            // qualifier does not set deal value
-            lastTouch: now,
-            sourceMessageId: message.id,
+            lastTouch: unchanged ? (existing?.lastTouch ?? now) : now,
+            sourceMessageId: unchanged ? existing?.sourceMessageId : message.id,
             threadId: existing?.threadId ?? message.threadId
         )
     }
