@@ -38,6 +38,15 @@ public struct AgentContext: Sendable {
 public protocol Agent: Sendable {
     var id: String { get }
     var autonomy: Autonomy { get }
+    /// The triage categories (labels) this agent subscribes to. The Orchestrator routes a triaged
+    /// message to an agent iff its category label is in this set. Defaults to empty so list-driven /
+    /// signal-gated agents (Outreach, ReplyDrafter, etc.) that are not category-routed still compile
+    /// without declaring anything.
+    var categories: Set<String> { get }
     func wakesFor(_ message: Message, context: AgentContext) -> Bool
     func proposals(for message: Message, context: AgentContext, tools: AgentTools) async throws -> [Action]
+}
+
+extension Agent {
+    public var categories: Set<String> { [] }
 }

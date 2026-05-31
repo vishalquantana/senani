@@ -31,7 +31,7 @@ private func triageTagging(_ category: String) -> FakeAgent {
 }
 
 private func leadOrchestrator(_ h: EngineHarness) -> Orchestrator {
-    let labeler = FakeAgent(id: "labeler", autonomy: .auto,
+    let labeler = FakeAgent(id: "labeler", autonomy: .auto, categories: ["Lead"],
                             wakes: { m, _ in m.labels.contains("Lead") },
                             emit: { _, _, tools in [tools.proposeLabel("SEEN", on: msg("x"))] })
     return Orchestrator(registry: AgentRegistry(agents: [labeler]),

@@ -18,7 +18,7 @@ enum BK {
         threadId: String = "t1"
     ) -> Message {
         Message(id: id, from: from, to: [account], subject: subject, body: body,
-                hasAttachment: false, listUnsubscribeHeader: nil, labels: ["Booking"],
+                hasAttachment: false, listUnsubscribeHeader: nil, labels: [TriageCategory.booking.label],
                 threadId: threadId, date: now, isFromUser: false)
     }
 

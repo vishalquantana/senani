@@ -34,7 +34,7 @@ private func makeOrchestrator(_ h: EngineHarness,
     try h.messages.save(message)
 
     // Agent set to .auto, but emits an OUTBOUND .send — must STILL queue.
-    let sender = FakeAgent(id: "sender", autonomy: .auto,
+    let sender = FakeAgent(id: "sender", autonomy: .auto, categories: ["Lead"],
                            wakes: { m, _ in m.labels.contains("Lead") },
                            emit: { _, _, _ in [.send(body: "Hi")] })
     let orch = makeOrchestrator(h, triage: fixedTriage("Lead"), agents: [sender])
@@ -54,7 +54,7 @@ private func makeOrchestrator(_ h: EngineHarness,
     let message = msg("m2", labels: ["Lead"])
     try h.messages.save(message)
 
-    let labeler = FakeAgent(id: "labeler", autonomy: .auto,
+    let labeler = FakeAgent(id: "labeler", autonomy: .auto, categories: ["Lead"],
                             wakes: { m, _ in m.labels.contains("Lead") },
                             emit: { _, _, tools in [tools.proposeLabel("Hot", on: msg("x"))] })
     let orch = makeOrchestrator(h, triage: fixedTriage("Lead"), agents: [labeler])
@@ -73,7 +73,7 @@ private func makeOrchestrator(_ h: EngineHarness,
     let message = msg("m3", labels: ["Lead"])
     try h.messages.save(message)
 
-    let labeler = FakeAgent(id: "labeler", autonomy: .ask,
+    let labeler = FakeAgent(id: "labeler", autonomy: .ask, categories: ["Lead"],
                             wakes: { m, _ in m.labels.contains("Lead") },
                             emit: { _, _, tools in [tools.archive(msg("x"))] })
     let orch = makeOrchestrator(h, triage: fixedTriage("Lead"), agents: [labeler])

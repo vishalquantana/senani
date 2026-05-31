@@ -21,7 +21,7 @@ private func makeOrchestrator(_ h: EngineHarness, triage: any Agent, agents: [an
     let message = msg("m1", labels: ["Lead"])
     try h.messages.save(message)
 
-    let drafter = FakeAgent(id: "reply-drafter", autonomy: .auto,
+    let drafter = FakeAgent(id: "reply-drafter", autonomy: .auto, categories: ["Lead"],
                             wakes: { m, _ in m.labels.contains("Lead") },
                             emit: { m, _, tools in [tools.draftReply(to: m, body: "Hi")] })
     let orch = makeOrchestrator(h, triage: triageTagging("Lead"), agents: [drafter])
@@ -46,7 +46,7 @@ private func makeOrchestrator(_ h: EngineHarness, triage: any Agent, agents: [an
     let message = msg("m2", labels: ["Lead"])
     try h.messages.save(message)
 
-    let sender = FakeAgent(id: "sender", autonomy: .auto,
+    let sender = FakeAgent(id: "sender", autonomy: .auto, categories: ["Lead"],
                            wakes: { m, _ in m.labels.contains("Lead") },
                            emit: { _, _, _ in [.send(body: "Now")] })
     let orch = makeOrchestrator(h, triage: triageTagging("Lead"), agents: [sender])
@@ -68,7 +68,7 @@ private func makeOrchestrator(_ h: EngineHarness, triage: any Agent, agents: [an
     ])
 
     // Triage tags Lead; one subscriber labels each message so we can count coverage.
-    let labeler = FakeAgent(id: "labeler", autonomy: .auto,
+    let labeler = FakeAgent(id: "labeler", autonomy: .auto, categories: ["Lead"],
                             wakes: { m, _ in m.labels.contains("Lead") },
                             emit: { _, _, tools in [tools.proposeLabel("SEEN", on: msg("x"))] })
     let orch = makeOrchestrator(h, triage: triageTagging("Lead"), agents: [labeler])

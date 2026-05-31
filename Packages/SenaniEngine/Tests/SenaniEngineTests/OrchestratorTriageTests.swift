@@ -10,10 +10,10 @@ private func triageTagging(_ category: String) -> FakeAgent {
               emit: { _, _, _ in [.label(category)] })
 }
 
-// Subscribes to `category` (wakes when the message — probe or real — has that label),
-// and on firing emits a unique reversible label so we can detect it ran.
+// Subscribes to `category` (declares it; the Orchestrator routes by `categories`) and wakes when
+// the augmented message carries that label, emitting a unique reversible marker label.
 private func subscriber(_ id: String, category: String, marker: String) -> FakeAgent {
-    FakeAgent(id: id, autonomy: .auto,
+    FakeAgent(id: id, autonomy: .auto, categories: [category],
               wakes: { m, _ in m.labels.contains(category) },
               emit: { _, _, tools in [tools.proposeLabel(marker, on: msg("x"))] })
 }
@@ -48,9 +48,9 @@ private func makeOrchestrator(_ h: EngineHarness, triage: any Agent, agents: [an
     let message = msg("m2", labels: ["Lead"])
     try h.messages.save(message)
 
-    let pickyAgent = FakeAgent(id: "picky", autonomy: .auto,
-                               // Subscribes to "Lead" (probe has only ["Lead"]) AND requires "Priority" on the real msg.
-                               wakes: { m, _ in m.labels.contains("Lead") && (m.id == "__probe__" || m.labels.contains("Priority")) },
+    let pickyAgent = FakeAgent(id: "picky", autonomy: .auto, categories: ["Lead"],
+                               // Subscribes to "Lead" by category, but ALSO requires "Priority" on the real msg.
+                               wakes: { m, _ in m.labels.contains("Lead") && m.labels.contains("Priority") },
                                emit: { _, _, tools in [tools.proposeLabel("PICKY_RAN", on: msg("x"))] })
     let orch = makeOrchestrator(h, triage: triageTagging("Lead"), agents: [pickyAgent])
 

@@ -15,8 +15,13 @@ public struct BookingAgent: Agent {
     /// `ActionRouter` queues regardless of autonomy.
     public let autonomy: Autonomy = .prepare
 
-    /// The category label Triage assigns to scheduling mail.
-    public static let category = "Booking"
+    /// The category label Triage assigns to scheduling mail. Triage emits the CANONICAL
+    /// `TriageCategory.booking.label` ("Senani/Category/Booking"), so the agent MUST match that —
+    /// not the bare "Booking" string it checked before (Finding 3).
+    public static let category = TriageCategory.booking.label
+
+    /// Category routing (Finding 9): the Orchestrator dispatches Booking-categorized mail here.
+    public var categories: Set<String> { [Self.category] }
     /// Keywords that signal meeting intent when no Booking label is present.
     static let meetingKeywords = ["meet", "meeting", "schedule", "scheduling",
                                   "call", "calendar", "availability", "time to", "catch up"]

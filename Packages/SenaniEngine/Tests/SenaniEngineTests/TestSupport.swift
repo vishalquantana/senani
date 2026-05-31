@@ -38,6 +38,8 @@ actor FakeTextGenerator: TextGenerator {
 
     init(responses: [String] = []) { self.responses = responses }
     init(response: String) { self.responses = [response] }
+    /// Append canned responses to a shared fake (used when the harness's generator is reused).
+    func preload(_ response: String) { responses.append(response) }
     private func next() -> String {
         if responses.count > 1 { return responses.removeFirst() }
         return responses.first ?? "{}"
@@ -75,11 +77,12 @@ struct FakeEmbedder: Embedder {
 struct FakeAgent: Agent {
     let id: String
     let autonomy: Autonomy
+    var categories: Set<String> = []
     var wakes: @Sendable (Message, AgentContext) -> Bool = { _, _ in true }
-    var emit: @Sendable (Message, AgentContext, AgentTools) -> [Action]
+    var emit: @Sendable (Message, AgentContext, AgentTools) async throws -> [Action]
     func wakesFor(_ message: Message, context: AgentContext) -> Bool { wakes(message, context) }
     func proposals(for message: Message, context: AgentContext, tools: AgentTools) async throws -> [Action] {
-        emit(message, context, tools)
+        try await emit(message, context, tools)
     }
 }
 
