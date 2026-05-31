@@ -33,7 +33,7 @@
 - [ ] Public launch (Show HN, r/LocalLLaMA, r/selfhosted, r/macapps, Product Hunt)
 
 ## Deferred — Packaging & licensing
-- [ ] Code signing + notarization
+- [x] Code signing + notarization (see Scripts/package_and_sign.sh + docs/SIGNING.md)
 - [ ] One-time license keys (offline verification)
 - [ ] Auto-update
 
