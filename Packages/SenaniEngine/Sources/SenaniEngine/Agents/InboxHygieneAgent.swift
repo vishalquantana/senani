@@ -19,6 +19,10 @@ public struct InboxHygieneAgent: Agent {
 
     /// The Triage agent's Newsletter category label (see Triage plan).
     public static let newsletterCategoryLabel = "Senani/Category/Newsletter"
+
+    /// Category routing (Finding 9): bulk mail (List-Unsubscribe / repeat-sender) can be triaged under
+    /// any category, not just Newsletter, so it subscribes to all and `wakesFor` gates firing.
+    public var categories: Set<String> { TriageCategory.allLabels }
     /// The hygiene label this agent applies.
     public static let hygieneLabel = "Senani/Newsletter"
     /// How many messages from the same domain in the thread count as a "repeat sender".

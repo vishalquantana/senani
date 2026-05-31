@@ -31,6 +31,14 @@ public struct AutonomySettingsStore: @unchecked Sendable {
         return value
     }
 
+    /// The agent's EXPLICITLY-set Autonomy, or `nil` if the user has never set a dial for it.
+    /// The Orchestrator uses this so an unset agent keeps its own static `autonomy` rather than
+    /// being silently forced to a default — only user-chosen dials override routing.
+    public func explicitAutonomy(forAgent agentId: String) -> Autonomy? {
+        guard let raw = defaults.string(forKey: key(agentId)) else { return nil }
+        return Autonomy(rawValue: raw)
+    }
+
     public func setAutonomy(_ autonomy: Autonomy, forAgent agentId: String) {
         defaults.set(autonomy.rawValue, forKey: key(agentId))
     }

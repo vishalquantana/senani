@@ -6,6 +6,10 @@ public struct ReplyDrafterAgent: Agent {
     public let id = "reply-drafter"
     public let autonomy: Autonomy = .prepare
 
+    /// Category routing (Finding 9): reply-drafting is signal-driven (`context.needsReply`), not bound
+    /// to a single category, so it subscribes to all of them and lets `wakesFor` gate firing.
+    public var categories: Set<String> { TriageCategory.allLabels }
+
     public static let maxDraftTokens = 512
 
     private let generator: any TextGenerator

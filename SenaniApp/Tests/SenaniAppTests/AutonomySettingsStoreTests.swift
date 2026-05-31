@@ -40,3 +40,21 @@ private func freshSuite() -> UserDefaults {
     a.setAutonomy(.auto, forAgent: "triage")
     #expect(b.autonomy(forAgent: "triage") == .ask)   // separate suites
 }
+
+// Finding 4 wiring: the Orchestrator uses `explicitAutonomy(forAgent:)`, which returns nil when the
+// user never set a dial — so an unset agent keeps its own static autonomy instead of being silently
+// forced to a default, while a user-set dial overrides routing.
+@Test func explicitAutonomyIsNilWhenUnsetAndValueWhenSet() {
+    let store = AutonomySettingsStore(defaults: freshSuite())
+    #expect(store.explicitAutonomy(forAgent: "triage") == nil)        // unset → fall back to static
+    store.setAutonomy(.auto, forAgent: "reply-drafter")
+    #expect(store.explicitAutonomy(forAgent: "reply-drafter") == .auto)  // set → overrides
+    #expect(store.explicitAutonomy(forAgent: "triage") == nil)        // other agent still unset
+}
+
+@Test func explicitAutonomyIgnoresCorruptValue() {
+    let d = freshSuite()
+    d.set("nonsense", forKey: "senani.autonomy.triage")
+    let store = AutonomySettingsStore(defaults: d)
+    #expect(store.explicitAutonomy(forAgent: "triage") == nil)
+}

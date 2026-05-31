@@ -9,6 +9,10 @@ public struct InvoiceFinanceAgent: Agent {
     public let id = "invoice-finance"
     public let autonomy: Autonomy = .prepare
 
+    /// Category routing (Finding 9): invoices arrive under any category (detected by attachment/cues),
+    /// so it subscribes to all and `wakesFor` (isInvoice) gates firing.
+    public var categories: Set<String> { TriageCategory.allLabels }
+
     public static let invoiceLabel = "Senani/Finance/Invoice"
     public static let dueSoonLabel = "Senani/Finance/DueSoon"
 

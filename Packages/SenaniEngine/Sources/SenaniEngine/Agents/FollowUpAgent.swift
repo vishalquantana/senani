@@ -16,6 +16,10 @@ public struct FollowUpAgent: Agent {
     /// and `ActionRouter` queues all outbound actions regardless of autonomy.
     public let autonomy: Autonomy = .prepare
 
+    /// Category routing (Finding 9): deal-scoped across any category, so it subscribes to all and
+    /// `wakesFor` (open deal + staleness) gates firing.
+    public var categories: Set<String> { TriageCategory.allLabels }
+
     /// Bounded generation budget for a single nudge body.
     public static let maxNudgeTokens = 320
 

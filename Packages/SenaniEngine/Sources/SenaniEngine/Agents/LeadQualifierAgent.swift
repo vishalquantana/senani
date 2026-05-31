@@ -18,6 +18,9 @@ public struct LeadQualifierAgent: Agent {
     public static let leadCategoryLabel = "Senani/Category/Lead"
     private static let leadTierPrefix = "Senani/Lead/"
 
+    /// Category routing (Finding 9): Lead is category-specific — it subscribes ONLY to Lead-classified mail.
+    public var categories: Set<String> { [Self.leadCategoryLabel] }
+
     /// Wakes ONLY for inbound, Triage-classified Lead messages not yet lead-qualified.
     public func wakesFor(_ message: Message, context: AgentContext) -> Bool {
         if message.isFromUser { return false }

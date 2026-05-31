@@ -9,6 +9,7 @@ import SenaniVoice
 import SenaniModelCatalog
 import SenaniCalendar
 import SenaniLicensing
+import SenaniReplyZero
 
 /// Records applied actions so preview-graph UI tests can assert execution
 /// happened without a real Gmail backend. Used only by AppEnvironment.preview().
@@ -152,13 +153,16 @@ public final class AppEnvironment: ObservableObject {
         let tier = RAMTier.detectHost()
 
         let pipeline = try SqlitePipelineStore(database: database)
+        let invoices = try SqliteInvoiceStore(database: database)
+        let settings = AutonomySettingsStore.live()
+        let autonomyForAgent: @Sendable (String) -> Autonomy = { settings.autonomy(forAgent: $0) }
+        let explicitAutonomy: @Sendable (String) -> Autonomy? = { settings.explicitAutonomy(forAgent: $0) }
         let (orchestrator, scheduler) = Self.makeEngine(
             mailBackend: mailBackend, approvals: approvals, audit: audit, messages: messages,
             index: index, embedder: embedder, generator: generator, pipeline: pipeline,
-            rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState, now: now)
+            rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState,
+            invoices: invoices, accountEmail: accountEmail, explicitAutonomy: explicitAutonomy, now: now)
 
-        let settings = AutonomySettingsStore.live()
-        let autonomyForAgent: @Sendable (String) -> Autonomy = { settings.autonomy(forAgent: $0) }
         let spy = SpyMailBackend()
 
         return AppEnvironment(database: database, messages: messages, rules: rules,
@@ -204,13 +208,15 @@ public final class AppEnvironment: ObservableObject {
         let choices = UserDefaultsModelChoiceStore(defaults: UserDefaults(suiteName: "preview")!)
         let tier = RAMTier.gb16
 
+        let invoices = InMemoryInvoiceStore()
+        let settings = AutonomySettingsStore.inMemory()
+        let autonomyForAgent: @Sendable (String) -> Autonomy = { settings.autonomy(forAgent: $0) }
+        let explicitAutonomy: @Sendable (String) -> Autonomy? = { settings.explicitAutonomy(forAgent: $0) }
         let (orchestrator, scheduler) = Self.makeEngine(
             mailBackend: mailBackend, approvals: approvals, audit: audit, messages: messages,
             index: index, embedder: embedder, generator: generator, pipeline: pipeline,
-            rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState, now: now)
-
-        let settings = AutonomySettingsStore.inMemory()
-        let autonomyForAgent: @Sendable (String) -> Autonomy = { settings.autonomy(forAgent: $0) }
+            rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState,
+            invoices: invoices, accountEmail: "preview@local", explicitAutonomy: explicitAutonomy, now: now)
 
         return AppEnvironment(database: database, messages: messages, rules: rules,
                               approvals: approvals, audit: audit, index: index,
@@ -229,6 +235,8 @@ public final class AppEnvironment: ObservableObject {
         messages: MessageStore, index: any VectorIndex, embedder: any Embedder,
         generator: any TextGenerator, pipeline: any PipelineStore, rules: RuleStore,
         sync: GmailSync, gmailAuth: GmailAuth, licenseState: LicenseState,
+        invoices: any InvoiceStore, accountEmail: String,
+        explicitAutonomy: @escaping @Sendable (String) -> Autonomy?,
         now: @escaping @Sendable () -> Date
     ) -> (Orchestrator, Scheduler) {
         let triage = TriageAgent()
@@ -286,11 +294,26 @@ public final class AppEnvironment: ObservableObject {
         let enabledAgents = allAgents.filter { licenseState.enablesAgent(id: $0.id) }
         
         let registry = AgentRegistry(agents: enabledAgents)
-        
+
+        // Finding 1: needs-reply signal — pure NeedsReplyClassifier over the message's thread
+        // (no LLM, no store population needed) so ReplyDrafter/FollowUp actually wake.
+        let needsReplyClassifier = NeedsReplyClassifier()
+        let needsReply: @Sendable (Message) -> Bool = { message in
+            let thread = (try? messages.thread(id: message.threadId)) ?? [message]
+            return needsReplyClassifier.classify(thread: thread, accountEmail: accountEmail)
+        }
+
         let orchestrator = Orchestrator(
             registry: registry, triage: triage, mailBackend: mailBackend,
             approvals: approvals, audit: audit, messages: messages, index: index,
-            embedder: embedder, generator: generator, pipeline: pipeline, rules: rules, now: now)
+            embedder: embedder, generator: generator, pipeline: pipeline, rules: rules,
+            // Finding 1: populate the read-only context seams (documentFields stays empty until the
+            // attachment fetch+parse pipeline lands — agents degrade to subject/body heuristics).
+            needsReply: needsReply,
+            invoices: invoices,
+            // Finding 4: user-set autonomy dials override routing; unset agents keep their static dial.
+            autonomy: explicitAutonomy,
+            now: now)
         let scheduler = Scheduler(
             sync: sync, store: messages, orchestrator: orchestrator,
             interval: 300, now: now)

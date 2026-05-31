@@ -6,6 +6,10 @@ public struct ProposalTrackerAgent: Agent {
     public let id = "proposal-tracker"
     public let autonomy: Autonomy = .prepare
 
+    /// Category routing (Finding 9): tracks outbound proposals AND inbound replies on tracked deals —
+    /// not bound to one category, so it subscribes to all and `wakesFor` gates firing.
+    public var categories: Set<String> { TriageCategory.allLabels }
+
     private let detector: ProposalDetector
     private let classifier: ReplyIntentClassifier
 
