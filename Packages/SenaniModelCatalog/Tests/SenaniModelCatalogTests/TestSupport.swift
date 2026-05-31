@@ -52,3 +52,20 @@ func makeTempDir() -> URL {
     try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
 }
+
+final class ThreadSafeArray<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var elements: [T] = []
+    func append(_ element: T) { lock.lock(); defer { lock.unlock() }; elements.append(element) }
+    var values: [T] { lock.lock(); defer { lock.unlock() }; return elements }
+    var last: T? { lock.lock(); defer { lock.unlock() }; return elements.last }
+    var count: Int { lock.lock(); defer { lock.unlock() }; return elements.count }
+    var first: T? { lock.lock(); defer { lock.unlock() }; return elements.first }
+}
+
+final class ThreadSafeCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count: Int = 0
+    func increment() { lock.lock(); defer { lock.unlock() }; count += 1 }
+    var value: Int { lock.lock(); defer { lock.unlock() }; return count }
+}
