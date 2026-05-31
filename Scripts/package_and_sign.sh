@@ -49,18 +49,28 @@ test -f "${PRODUCT_BIN}" || { echo "missing ${PRODUCT_BIN}" >&2; exit 1; }
 # ---- 2. assemble the .app bundle ----
 echo "==> assembling Senani.app"
 rm -rf "${APP}"
-mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/Resources"
+mkdir -p "${APP}/Contents/MacOS" "${APP}/Contents/Resources" "${APP}/Contents/Frameworks"
 
 # executable
 cp "${PRODUCT_BIN}" "${APP}/Contents/MacOS/Senani"
 chmod +x "${APP}/Contents/MacOS/Senani"
 
+# Embed Sparkle
+SPARKLE_FW="${APP_PKG}/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+if [[ -d "${SPARKLE_FW}" ]]; then
+    cp -R "${SPARKLE_FW}" "${APP}/Contents/Frameworks/"
+    # Fix rpath so Senani can find Sparkle in Contents/Frameworks
+    install_name_tool -add_rpath "@executable_path/../Frameworks" "${APP}/Contents/MacOS/Senani" || true
+fi
+
 # icon
 "${SCRIPT_DIR}/make_icon.sh"
 cp "${SCRIPT_DIR}/Senani.icns" "${APP}/Contents/Resources/Senani.icns"
 
-# Info.plist (substitute version tokens)
+# Info.plist (substitute version tokens and Sparkle keys)
 sed -e "s/@@VERSION@@/${VERSION}/g" -e "s/@@BUILD@@/${BUILD_NUMBER}/g" \
+    -e "s|@@SU_FEED_URL@@|${SENANI_SU_FEED_URL:-https://updates.example.invalid/appcast.xml}|g" \
+    -e "s/@@SU_PUBLIC_ED_KEY@@/${SENANI_SU_PUBLIC_ED_KEY:-REPLACE_WITH_SUPublicEDKey_FROM_generate_keys}/g" \
     "${SCRIPT_DIR}/Info.plist.template" > "${APP}/Contents/Info.plist"
 plutil -lint "${APP}/Contents/Info.plist"
 

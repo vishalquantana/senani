@@ -34,5 +34,22 @@
     <array>
         <string>arm64</string>
     </array>
+    
+    <!-- ===== Sparkle auto-update (privacy-locked) ===== -->
+    <key>SUFeedURL</key>               <string>@@SU_FEED_URL@@</string>
+    <key>SUPublicEDKey</key>           <string>@@SU_PUBLIC_ED_KEY@@</string>
+
+    <!-- Privacy: NO anonymous system profiling / metrics (docs/ARCHITECTURE.md). -->
+    <key>SUEnableSystemProfiling</key> <false/>
+
+    <!-- Automatic checks are USER OPT-IN: do NOT force-enable. Sparkle will
+         prompt on first launch; default stays off until the user agrees. -->
+    <key>SUEnableAutomaticChecks</key> <false/>
+
+    <!-- Required for Sparkle 2 sandboxed/installer flow on a signed .app. -->
+    <key>SUEnableInstallerLauncherService</key> <true/>
+
+    <!-- 24h is fine when the user opts in; not used while checks are off. -->
+    <key>SUScheduledCheckInterval</key> <integer>86400</integer>
 </dict>
 </plist>
