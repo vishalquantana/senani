@@ -69,3 +69,30 @@ final class ThreadSafeCounter: @unchecked Sendable {
     func increment() { lock.lock(); defer { lock.unlock() }; count += 1 }
     var value: Int { lock.lock(); defer { lock.unlock() }; return count }
 }
+
+// ---- doubles for ModelManager ----
+
+final class FakeDownloader: ModelDownloading, @unchecked Sendable {
+    var base: URL
+    private(set) var downloadedIds: [String] = []
+    init(base: URL) { self.base = base }
+    func localPath(for model: ModelInfo) -> String {
+        base.appendingPathComponent(model.id.replacingOccurrences(of: "/", with: "__")).path
+    }
+    func isCached(_ model: ModelInfo) -> Bool {
+        FileManager.default.fileExists(atPath: localPath(for: model))
+    }
+    func download(_ model: ModelInfo, onProgress: @Sendable @escaping (DownloadProgress) -> Void) async throws -> String {
+        downloadedIds.append(model.id)
+        let dir = URL(fileURLWithPath: localPath(for: model))
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try Data("dummy".utf8).write(to: dir.appendingPathComponent("model.safetensors"))
+        onProgress(DownloadProgress(filesCompleted: 1, filesTotal: 1))
+        return dir.path
+    }
+}
+
+final class SpyInstaller: GeneratorInstalling, @unchecked Sendable {
+    private(set) var installedPaths: [String] = []
+    func install(modelPath: String) throws { installedPaths.append(modelPath) }
+}
