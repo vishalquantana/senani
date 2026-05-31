@@ -3,6 +3,7 @@ import Observation
 import SenaniStore
 import SenaniInference
 import SenaniGmail
+import SenaniDocs
 import SenaniRules
 import SenaniEngine
 import SenaniVoice
@@ -150,6 +151,23 @@ public final class AppEnvironment: ObservableObject {
         let mailBackend = GmailMailBackend(http: http, tokenProvider: gmail, accountEmail: accountEmail)
         let sync = GmailSync(http: http, tokenProvider: gmail, accountEmail: accountEmail)
 
+        // Document-fields pipeline: mirror sync/mailBackend's http + Gmail token
+        // provider. Gmail's API uses "me" for the authenticated user when no
+        // address is known yet, so an empty accountEmail still yields a valid path.
+        let attachmentFetcher = GmailAttachmentFetcher(
+            http: http, tokenProvider: gmail,
+            accountEmail: accountEmail.isEmpty ? "me" : accountEmail)
+        // LiteParseDocumentParser only succeeds when the native parse libs are
+        // configured (SENANI_LITEPARSE_ENABLED); otherwise it throws and the
+        // provider degrades to [:]. See HANDOFF.
+        let documentFieldsProvider = GmailDocumentFieldsProvider(
+            fetcher: attachmentFetcher,
+            parser: LiteParseDocumentParser(),
+            extractor: DocumentExtractor(generator: generator))
+        let documentFields: @Sendable (Message) async -> [String: String] = {
+            await documentFieldsProvider.fields(for: $0)
+        }
+
         // License State wiring
         let licenseState = LicenseState()
 
@@ -171,7 +189,8 @@ public final class AppEnvironment: ObservableObject {
             mailBackend: mailBackend, approvals: approvals, audit: audit, messages: messages,
             index: index, embedder: embedder, generator: generator, pipeline: pipeline,
             rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState,
-            invoices: invoices, accountEmail: accountEmail, explicitAutonomy: explicitAutonomy, now: now)
+            invoices: invoices, accountEmail: accountEmail, explicitAutonomy: explicitAutonomy,
+            documentFields: documentFields, now: now)
 
         let spy = SpyMailBackend()
 
@@ -226,7 +245,8 @@ public final class AppEnvironment: ObservableObject {
             mailBackend: mailBackend, approvals: approvals, audit: audit, messages: messages,
             index: index, embedder: embedder, generator: generator, pipeline: pipeline,
             rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState,
-            invoices: invoices, accountEmail: "preview@local", explicitAutonomy: explicitAutonomy, now: now)
+            invoices: invoices, accountEmail: "preview@local", explicitAutonomy: explicitAutonomy,
+            documentFields: { await FakeDocumentFieldsProvider().fields(for: $0) }, now: now)
 
         return AppEnvironment(database: database, messages: messages, rules: rules,
                               approvals: approvals, audit: audit, index: index,
@@ -247,6 +267,7 @@ public final class AppEnvironment: ObservableObject {
         sync: GmailSync, gmailAuth: GmailAuth, licenseState: LicenseState,
         invoices: any InvoiceStore, accountEmail: String,
         explicitAutonomy: @escaping @Sendable (String) -> Autonomy?,
+        documentFields: @escaping @Sendable (Message) async -> [String: String] = { _ in [:] },
         now: @escaping @Sendable () -> Date
     ) -> (Orchestrator, Scheduler) {
         let triage = TriageAgent()
@@ -317,9 +338,11 @@ public final class AppEnvironment: ObservableObject {
             registry: registry, triage: triage, mailBackend: mailBackend,
             approvals: approvals, audit: audit, messages: messages, index: index,
             embedder: embedder, generator: generator, pipeline: pipeline, rules: rules,
-            // Finding 1: populate the read-only context seams (documentFields stays empty until the
-            // attachment fetch+parse pipeline lands — agents degrade to subject/body heuristics).
+            // Finding 1: populate the read-only context seams. documentFields is now wired to the
+            // attachment fetch+parse+extract pipeline (best-effort; agents degrade to subject/body
+            // heuristics whenever it yields [:]).
             needsReply: needsReply,
+            documentFields: documentFields,
             invoices: invoices,
             // Finding 4: user-set autonomy dials override routing; unset agents keep their static dial.
             autonomy: explicitAutonomy,

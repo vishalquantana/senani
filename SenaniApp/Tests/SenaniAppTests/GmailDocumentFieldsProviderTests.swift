@@ -5,6 +5,7 @@ import SenaniRules
 import SenaniGmail
 import SenaniDocs
 import SenaniInference
+import SenaniEngine
 
 private struct FakeAttachmentFetcher: AttachmentFetching {
     var refs: [GmailAttachmentRef] = []
@@ -107,6 +108,32 @@ private func extractor(returning fields: [String: String]) -> DocumentExtractor 
             extractor: extractor(returning: ["amount": "$500"]))
         let fields = await provider.fields(for: message(hasAttachment: true))
         #expect(fields.isEmpty)
+    }
+
+    /// Integration: provider-supplied fields flip InvoiceDetector ON for an
+    /// invoice whose subject/body carry NO keyword cue (proving the wiring is
+    /// load-bearing — empty fields would leave it OFF).
+    @Test func providerFieldsFlipInvoiceDetection() async {
+        let detector = InvoiceDetector()
+        // A no-cue inbound mail with an attachment.
+        let m = Message(id: "m-1", from: "vendor@acme.com", to: ["me@x.com"],
+                        subject: "Documents", body: "See attached.", hasAttachment: true,
+                        listUnsubscribeHeader: nil, labels: [], threadId: "t-1",
+                        date: Date(timeIntervalSince1970: 1000), isFromUser: false)
+
+        // Empty fields → falls back to heuristics → not an invoice.
+        #expect(detector.isInvoice(m, documentFields: [:]) == false)
+
+        let parsed = ParsedDocument(id: "d-1", messageId: "m-1", filename: "invoice.pdf",
+                                    kind: "pdf", text: "Invoice total $500")
+        let provider = GmailDocumentFieldsProvider(
+            fetcher: FakeAttachmentFetcher(refs: [pdfRef()]),
+            parser: FakeDocumentParser(canned: parsed),
+            extractor: extractor(returning: ["amount": "$500.00"]))
+        let fields = await provider.fields(for: m)
+
+        // Provider-supplied monetary field → detected as invoice.
+        #expect(detector.isInvoice(m, documentFields: fields) == true)
     }
 
     @Test func picksFirstParseableDoc() async {
