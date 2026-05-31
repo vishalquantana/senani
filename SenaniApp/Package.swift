@@ -21,6 +21,7 @@ let package = Package(
         .package(path: "../Packages/SenaniDesign"),
         .package(path: "../Packages/SenaniModelCatalog"),
         .package(path: "../Packages/SenaniLicensing"),
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.6.0"),
     ],
     targets: [
         .executableTarget(
@@ -30,6 +31,7 @@ let package = Package(
                 "SenaniVoice", "SenaniDocs", "SenaniReplyZero", "SenaniAnalytics",
                 "SenaniAssistant", "SenaniEngine", "SenaniDesign",
                 "SenaniModelCatalog", "SenaniLicensing",
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
