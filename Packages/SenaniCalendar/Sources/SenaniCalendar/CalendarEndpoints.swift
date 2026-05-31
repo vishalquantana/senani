@@ -22,19 +22,27 @@ public enum CalendarEndpoints {
     }
 
     /// GET /calendars/{id}/events — single (expanded) events over [start, end), ordered by start.
+    /// Paginated via `pageToken`/`maxResults`; the caller loops on `nextPageToken`.
     public static func listEvents(
         range: DateRange,
         calendarId: String,
+        pageToken: String? = nil,
+        maxResults: Int = 250,
         accessToken: String
     ) -> URLRequest {
         let path = "calendars/\(calendarId)/events"
         var comps = URLComponents(url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
-        comps.queryItems = [
+        var items = [
             URLQueryItem(name: "timeMin", value: CalendarHTTP.timestamp(range.start)),
             URLQueryItem(name: "timeMax", value: CalendarHTTP.timestamp(range.end)),
             URLQueryItem(name: "singleEvents", value: "true"),
             URLQueryItem(name: "orderBy", value: "startTime"),
+            URLQueryItem(name: "maxResults", value: String(maxResults)),
         ]
+        if let pageToken {
+            items.append(URLQueryItem(name: "pageToken", value: pageToken))
+        }
+        comps.queryItems = items
         return authorizedRequest(url: comps.url!, method: "GET", accessToken: accessToken)
     }
 
@@ -93,6 +101,7 @@ struct FreeBusyBusy: Decodable {
 
 struct EventsListResponse: Decodable {
     var items: [EventItem]?
+    var nextPageToken: String?
 }
 
 struct EventItem: Decodable {

@@ -53,20 +53,37 @@ public struct CalendarClient: Sendable {
     }
 
     /// Timed events over the window. All-day events (no `dateTime`) are skipped.
-    public func listEvents(range: DateRange) async throws -> [CalendarEvent] {
+    /// Paginates the events.list endpoint (mirrors `GmailSync.fetchMessages`): without the loop,
+    /// a truncated first page would make later busy windows look free.
+    public func listEvents(range: DateRange, maxResults: Int = 250) async throws -> [CalendarEvent] {
         let token = try await tokenProvider.validAccessToken()
-        let request = CalendarEndpoints.listEvents(range: range, calendarId: calendarId, accessToken: token)
-        let (data, response) = try await http.send(request)
-        try CalendarHTTP.validate(response: response, data: data)
-        let decoded = try JSONDecoder().decode(EventsListResponse.self, from: data)
-        return (decoded.items ?? []).compactMap { item in
-            guard let id = item.id,
-                  let startString = item.start?.dateTime,
-                  let endString = item.end?.dateTime,
-                  let start = CalendarHTTP.date(from: startString),
-                  let end = CalendarHTTP.date(from: endString) else { return nil }
-            return CalendarEvent(id: id, title: item.summary ?? "", start: start, end: end)
-        }
+        var pageToken: String?
+        var events: [CalendarEvent] = []
+
+        repeat {
+            let request = CalendarEndpoints.listEvents(
+                range: range,
+                calendarId: calendarId,
+                pageToken: pageToken,
+                maxResults: maxResults,
+                accessToken: token
+            )
+            let (data, response) = try await http.send(request)
+            try CalendarHTTP.validate(response: response, data: data)
+            let decoded = try JSONDecoder().decode(EventsListResponse.self, from: data)
+
+            events.append(contentsOf: (decoded.items ?? []).compactMap { item in
+                guard let id = item.id,
+                      let startString = item.start?.dateTime,
+                      let endString = item.end?.dateTime,
+                      let start = CalendarHTTP.date(from: startString),
+                      let end = CalendarHTTP.date(from: endString) else { return nil }
+                return CalendarEvent(id: id, title: item.summary ?? "", start: start, end: end)
+            })
+            pageToken = decoded.nextPageToken
+        } while pageToken != nil
+
+        return events
     }
 
     /// Builds a tentative-hold draft AND the `URLRequest` that WOULD create it — but does NOT send it.

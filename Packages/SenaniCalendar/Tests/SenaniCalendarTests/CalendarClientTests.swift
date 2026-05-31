@@ -75,6 +75,25 @@ private func range() -> DateRange {
             == CalendarHTTP.date(from: "2023-11-15T09:00:00Z"))
 }
 
+@Test func listEventsFollowsNextPageTokenAndReturnsAllEvents() async throws {
+    let http = FakeHTTPClient()
+    await http.enqueueJSON(CalFix.eventsPage1JSON)   // carries nextPageToken=PAGE2
+    await http.enqueueJSON(CalFix.eventsPage2JSON)   // terminal page
+    let client = CalendarClient(http: http, tokenProvider: StubTokenProvider(token: "T"))
+
+    let events = try await client.listEvents(range: range())
+
+    // BOTH pages' events are returned (truncating page 1 would make page-2 busy windows look free).
+    #expect(events.map(\.id) == ["e1", "e2"])
+    // Two HTTP calls were made: the initial page + the nextPageToken follow-up.
+    let sent = await http.recordedRequests
+    #expect(sent.count == 2)
+    // The follow-up request carried the pageToken (and never the previous-page token in a loop).
+    let secondURL = URLComponents(url: sent[1].url!, resolvingAgainstBaseURL: false)!
+    let q = Dictionary(uniqueKeysWithValues: (secondURL.queryItems ?? []).map { ($0.name, $0.value) })
+    #expect(q["pageToken"] == "PAGE2")
+}
+
 @Test func freeBusyThrowsOnHTTPError() async throws {
     let http = FakeHTTPClient()
     await http.enqueueJSON(#"{"error":"forbidden"}"#, status: 403)
