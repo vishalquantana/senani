@@ -40,10 +40,11 @@ public struct ReplyIntentClassifier: Sendable {
         """
     }
 
-    /// Safe parse — unknown/missing/garbage → "other".
+    /// Safe parse — tolerates prose/markdown-wrapped output by extracting the first balanced
+    /// JSON object (shared `JSONExtraction`). unknown/missing/garbage/empty → "other".
     static func parseIntent(_ raw: String) -> String {
         guard
-            let data = raw.data(using: .utf8),
+            let data = JSONExtraction.firstObject(in: raw),
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let intent = object["intent"] as? String
         else { return "other" }

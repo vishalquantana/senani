@@ -42,7 +42,7 @@ public struct LeadQualification: Sendable, Equatable {
     public static func parse(_ raw: String) -> LeadQualification {
         let fallback = LeadQualification(score: 0, company: nil, intent: .info, reason: "")
         guard
-            let data = firstJSONObject(in: raw),
+            let data = JSONExtraction.firstObject(in: raw),
             let object = try? JSONSerialization.jsonObject(with: data),
             let dict = object as? [String: Any]
         else {
@@ -65,27 +65,5 @@ public struct LeadQualification: Sendable, Equatable {
         case let n as NSNumber: return n.intValue
         default: return 0
         }
-    }
-
-    /// Returns the bytes of the first balanced {...} object in `raw`, tolerating surrounding prose.
-    private static func firstJSONObject(in raw: String) -> Data? {
-        let chars = Array(raw)
-        guard let start = chars.firstIndex(of: "{") else { return nil }
-        var depth = 0, inString = false, escaped = false, i = start
-        while i < chars.count {
-            let ch = chars[i]
-            if inString {
-                if escaped { escaped = false }
-                else if ch == "\\" { escaped = true }
-                else if ch == "\"" { inString = false }
-            } else if ch == "\"" { inString = true }
-            else if ch == "{" { depth += 1 }
-            else if ch == "}" {
-                depth -= 1
-                if depth == 0 { return String(chars[start...i]).data(using: .utf8) }
-            }
-            i += 1
-        }
-        return nil
     }
 }
