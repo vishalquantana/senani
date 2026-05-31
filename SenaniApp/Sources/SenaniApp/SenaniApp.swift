@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct SenaniApp: App {
     @StateObject private var environment: AppEnvironment
+    @StateObject private var updateController = UpdateController()
 
     init() {
         // Composition Root: construct the live graph once. If it fails (e.g. the
@@ -26,5 +27,8 @@ struct SenaniApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unified)
+        .commands {
+            CheckForUpdatesCommand(updateController: updateController)
+        }
     }
 }
