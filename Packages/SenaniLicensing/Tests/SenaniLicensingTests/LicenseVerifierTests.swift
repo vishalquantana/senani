@@ -64,3 +64,16 @@ private func proPayload() -> LicensePayload {
     #expect(verifier.verify("") == .malformed)                 // empty
     #expect(verifier.verify("AAAAA-AAAAA") == .malformed)      // decodes but far too short
 }
+
+@Test func embeddedPublicKeyParsesInto32Bytes() throws {
+    // The embedded base64 must decode to a 32-byte Ed25519 public key (or be the
+    // documented placeholder, which still must be 32 bytes so the app never crashes).
+    let key = try EmbeddedPublicKey.publicKey()
+    #expect(key.rawRepresentation.count == 32)
+}
+
+@Test func senaniFactoryBuildsAVerifier() throws {
+    let verifier = try LicenseVerifier.senani()
+    // A random key string is malformed under any public key — proves the verifier runs.
+    #expect(verifier.verify("ZZZZZ-ZZZZZ") == .malformed || verifier.verify("ZZZZZ-ZZZZZ") == .invalid)
+}
