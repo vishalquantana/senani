@@ -56,7 +56,8 @@ public struct LeadQualifierAgent: Agent {
             score: qualification.score,
             value: existing?.value,            // qualifier does not set deal value
             lastTouch: now,
-            sourceMessageId: message.id
+            sourceMessageId: message.id,
+            threadId: existing?.threadId ?? message.threadId
         )
     }
 

@@ -21,9 +21,17 @@ public struct Deal: Sendable, Identifiable, Codable, Equatable {
     public var value: Double?
     public var lastTouch: Date
     public var sourceMessageId: String?
+    /// The thread this deal is tracked against. The FollowUp agent looks deals up by
+    /// `message.threadId`, which is NOT the same as `message.id` (= `sourceMessageId`), so this
+    /// is a first-class stored field rather than an alias of `sourceMessageId`.
+    public var threadId: String
 
+    /// `threadId` defaults to `sourceMessageId` (or, failing that, `id`) so existing call sites
+    /// that predate the field keep compiling and behaving sensibly; upserting agents pass the real
+    /// `message.threadId`.
     public init(id: String, contactEmail: String, company: String? = nil, stage: DealStage,
-                score: Int? = nil, value: Double? = nil, lastTouch: Date, sourceMessageId: String? = nil) {
+                score: Int? = nil, value: Double? = nil, lastTouch: Date,
+                sourceMessageId: String? = nil, threadId: String? = nil) {
         self.id = id
         self.contactEmail = contactEmail
         self.company = company
@@ -32,6 +40,7 @@ public struct Deal: Sendable, Identifiable, Codable, Equatable {
         self.value = value
         self.lastTouch = lastTouch
         self.sourceMessageId = sourceMessageId
+        self.threadId = threadId ?? sourceMessageId ?? id
     }
 }
 
@@ -84,7 +93,9 @@ public final class InMemoryPipelineStore: PipelineStore, @unchecked Sendable {
     }
     public func deal(threadId: String) throws -> Deal? {
         lock.lock(); defer { lock.unlock() }
-        return deals.values.first { $0.sourceMessageId == threadId || $0.id == threadId }
+        // Primary key is the real `threadId`; `id` is tolerated as a fallback for deals seeded
+        // without thread context.
+        return deals.values.first { $0.threadId == threadId || $0.id == threadId }
     }
 }
 
@@ -103,11 +114,4 @@ public struct NullPipelineStore: PipelineStore {
 /// Narrow read seam over the message thread store.
 public protocol ThreadReading: Sendable {
     func thread(id: String) throws -> [Message]   // date ascending
-}
-
-/// Add threadId back to Deal for Follow-up agent compatibility.
-public extension Deal {
-    var threadId: String {
-        sourceMessageId ?? id
-    }
 }

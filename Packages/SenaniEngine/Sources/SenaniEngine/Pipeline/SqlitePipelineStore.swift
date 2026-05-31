@@ -24,8 +24,17 @@ public struct SqlitePipelineStore: PipelineStore {
                 sourceMessageId TEXT
             )
             """)
+            // Additive migration: older databases created before `threadId` existed get the column
+            // backfilled to `sourceMessageId` (or `id`). Guarded so re-running construction is safe.
+            let hasThreadId = try Row.fetchAll(db, sql: "PRAGMA table_info(deals)")
+                .contains { ($0["name"] as String?) == "threadId" }
+            if !hasThreadId {
+                try db.execute(sql: "ALTER TABLE deals ADD COLUMN threadId TEXT")
+                try db.execute(sql: "UPDATE deals SET threadId = COALESCE(sourceMessageId, id) WHERE threadId IS NULL")
+            }
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_deals_contact ON deals(contactEmail)")
             try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(stage)")
+            try db.execute(sql: "CREATE INDEX IF NOT EXISTS idx_deals_thread ON deals(threadId)")
         }
     }
 
@@ -33,8 +42,8 @@ public struct SqlitePipelineStore: PipelineStore {
         try database.queue.write { db in
             try db.execute(sql: """
             INSERT INTO deals
-              (id, contactEmail, company, stage, score, value, lastTouch, sourceMessageId)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              (id, contactEmail, company, stage, score, value, lastTouch, sourceMessageId, threadId)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               contactEmail = excluded.contactEmail,
               company = excluded.company,
@@ -42,10 +51,12 @@ public struct SqlitePipelineStore: PipelineStore {
               score = excluded.score,
               value = excluded.value,
               lastTouch = excluded.lastTouch,
-              sourceMessageId = excluded.sourceMessageId
+              sourceMessageId = excluded.sourceMessageId,
+              threadId = excluded.threadId
             """, arguments: [
                 deal.id, deal.contactEmail, deal.company, deal.stage.rawValue,
-                deal.score, deal.value, deal.lastTouch.timeIntervalSince1970, deal.sourceMessageId,
+                deal.score, deal.value, deal.lastTouch.timeIntervalSince1970,
+                deal.sourceMessageId, deal.threadId,
             ])
         }
     }
@@ -88,7 +99,7 @@ public struct SqlitePipelineStore: PipelineStore {
         try database.queue.read { db in
             guard let row = try Row.fetchOne(
                 db,
-                sql: "SELECT * FROM deals WHERE sourceMessageId = ? OR id = ? LIMIT 1",
+                sql: "SELECT * FROM deals WHERE threadId = ? OR id = ? LIMIT 1",
                 arguments: [threadId, threadId]) else { return nil }
             return Self.deal(from: row)
         }
@@ -104,7 +115,8 @@ public struct SqlitePipelineStore: PipelineStore {
             score: row["score"],
             value: row["value"],
             lastTouch: Date(timeIntervalSince1970: row["lastTouch"]),
-            sourceMessageId: row["sourceMessageId"]
+            sourceMessageId: row["sourceMessageId"],
+            threadId: (row["threadId"] as String?) ?? (row["sourceMessageId"] as String?) ?? row["id"]
         )
     }
 }

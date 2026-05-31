@@ -50,7 +50,8 @@ public struct ProposalTrackerAgent: Agent {
             score: existing?.score,
             value: signal.value ?? existing?.value,
             lastTouch: message.date,
-            sourceMessageId: message.id
+            sourceMessageId: message.id,
+            threadId: existing?.threadId ?? message.threadId
         )
         try context.pipeline.upsert(deal)
         return []
@@ -69,7 +70,8 @@ public struct ProposalTrackerAgent: Agent {
             score: existing.score,
             value: existing.value,
             lastTouch: message.date,
-            sourceMessageId: message.id
+            sourceMessageId: message.id,
+            threadId: existing.threadId
         )
         try context.pipeline.upsert(updated)
 

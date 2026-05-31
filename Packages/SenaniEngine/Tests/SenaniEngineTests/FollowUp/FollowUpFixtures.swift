@@ -44,7 +44,7 @@ enum FU {
         id: String = "d1", threadId: String = "t1",
         stage: DealStage = .proposal, lastTouch: Date? = nil
     ) -> Deal {
-        Deal(id: id, contactEmail: contact, stage: stage, lastTouch: lastTouch ?? now.addingTimeInterval(-day(10)), sourceMessageId: threadId)
+        Deal(id: id, contactEmail: contact, stage: stage, lastTouch: lastTouch ?? now.addingTimeInterval(-day(10)), sourceMessageId: threadId, threadId: threadId)
     }
 
     /// Builds an AgentContext over the given thread.
