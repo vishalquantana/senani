@@ -1,11 +1,16 @@
 name: Release
 
-# Builds and publishes the macOS app when a version tag is pushed.
+# Builds, signs, notarizes, staples, and publishes the macOS app on a v* tag.
+# All credentials come from repository Secrets — none is committed.
 #
-# ⚠️ Pre-alpha scaffold: the actual Xcode build steps are stubbed until the app
-# project exists (Phase 0/1). Pushing a `v*` tag today will create a GitHub
-# Release from the tag; the signed .dmg is attached once the build steps below
-# are wired up.
+# Required repository Secrets:
+#   SENANI_SIGN_IDENTITY     "Developer ID Application: <Name> (<TEAMID>)"
+#   SENANI_TEAM_ID           Apple Team ID
+#   SENANI_CERT_P12_BASE64   base64 of the Developer ID Application cert+key .p12
+#   SENANI_CERT_P12_PASSWORD password used when exporting that .p12
+#   SENANI_ASC_ISSUER_ID     App Store Connect API issuer UUID
+#   SENANI_ASC_KEY_ID        App Store Connect API key id
+#   SENANI_ASC_KEY_BASE64    base64 of the AuthKey_<KEYID>.p8
 
 on:
   push:
@@ -23,21 +28,69 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # --- TODO (Phase 0/1): build, sign, notarize ---
-      # - name: Select Xcode
-      #   run: sudo xcode-select -s /Applications/Xcode_16.app
-      # - name: Build
-      #   run: xcodebuild -scheme Senani -configuration Release archive ...
-      # - name: Code sign & notarize
-      #   run: ./scripts/notarize.sh
-      # - name: Package .dmg
-      #   run: ./scripts/make_dmg.sh
-      - name: Placeholder build step
-        run: echo "Build steps land in Phase 0/1. See docs/ROADMAP.md."
+      - name: Select Xcode (toolchain for swift + notarytool)
+        run: sudo xcode-select -s /Applications/Xcode_16.app
+
+      - name: Install librsvg (icon rasterization)
+        run: brew install librsvg
+
+      - name: Derive version from tag
+        id: ver
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "version=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "build=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Import signing certificate into a temporary keychain
+        env:
+          SENANI_CERT_P12_BASE64: ${{ secrets.SENANI_CERT_P12_BASE64 }}
+          SENANI_CERT_P12_PASSWORD: ${{ secrets.SENANI_CERT_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/senani-signing.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -base64 24)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$SENANI_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
+            -P "$SENANI_CERT_P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          echo "SENANI_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+
+      - name: Write App Store Connect API key to a temp file
+        env:
+          SENANI_ASC_KEY_BASE64: ${{ secrets.SENANI_ASC_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          echo "$SENANI_ASC_KEY_BASE64" | base64 --decode > "$KEY_PATH"
+          echo "SENANI_ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Package, sign, notarize, staple
+        env:
+          SENANI_SIGN_IDENTITY: ${{ secrets.SENANI_SIGN_IDENTITY }}
+          SENANI_TEAM_ID: ${{ secrets.SENANI_TEAM_ID }}
+          SENANI_ASC_ISSUER_ID: ${{ secrets.SENANI_ASC_ISSUER_ID }}
+          SENANI_ASC_KEY_ID: ${{ secrets.SENANI_ASC_KEY_ID }}
+          SENANI_MAKE_DMG: "1"
+        run: |
+          Scripts/package_and_sign.sh "${{ steps.ver.outputs.version }}" "${{ steps.ver.outputs.build }}"
+
+      - name: Clean up secrets from the runner
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey.p8" || true
+          security delete-keychain "$RUNNER_TEMP/senani-signing.keychain-db" || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
-          # files: dist/Senani-*.dmg   # uncomment once builds are produced
+          files: |
+            dist/Senani-*.dmg
+            dist/Senani-*.zip
