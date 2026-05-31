@@ -7,6 +7,7 @@ import SenaniDesign
 struct SettingsView: View {
     @EnvironmentObject private var env: AppEnvironment
     @State private var model: AutonomySettingsViewModel?
+    @State private var showModelPicker = false
 
     var body: some View {
         ScrollView {
@@ -34,10 +35,25 @@ struct SettingsView: View {
                 }
 
                 GlassPanel(style: .compact) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Account & model").font(.senaniBody.weight(.semibold)).foregroundStyle(Color.senaniInk)
-                        Text("Connect Gmail and choose a model — configured in onboarding.")
-                            .font(.system(size: 12)).foregroundStyle(Color.senaniMuted)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Local Model").font(.senaniBody.weight(.semibold)).foregroundStyle(Color.senaniInk)
+                        
+                        if env.hasModel {
+                            HStack {
+                                Image(systemName: "cpu")
+                                    .foregroundStyle(Gold.base)
+                                Text(env.choices.load()?.modelId ?? "Active")
+                                    .font(.senaniBody)
+                            }
+                        } else {
+                            Text("No model installed. Live inference is disabled.")
+                                .font(.system(size: 12)).foregroundStyle(.red)
+                        }
+                        
+                        Button("Manage Models…") {
+                            showModelPicker = true
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .padding(20)
                 }
@@ -46,6 +62,10 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(Color.senaniSurface)
+        .sheet(isPresented: $showModelPicker) {
+            ModelPickerView()
+                .frame(width: 600, height: 500)
+        }
         .task {
             if model == nil { model = AutonomySettingsViewModel(environment: env) }
             model?.refresh()

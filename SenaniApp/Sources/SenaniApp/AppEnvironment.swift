@@ -1,10 +1,14 @@
 import Foundation
+import Observation
 import SenaniStore
 import SenaniInference
 import SenaniGmail
 import SenaniRules
 import SenaniEngine
 import SenaniVoice
+import SenaniModelCatalog
+import SenaniCalendar
+import SenaniLicensing
 
 /// Records applied actions so preview-graph UI tests can assert execution
 /// happened without a real Gmail backend. Used only by AppEnvironment.preview().
@@ -35,12 +39,30 @@ public final class AppEnvironment: ObservableObject {
     public let approvals: ApprovalStore
     public let audit: PersistentAuditLog
     public let index: any VectorIndex
-    public let generator: any TextGenerator
     public let embedder: any Embedder
     public let gmail: GmailAuth
     public let orchestrator: Orchestrator
     public let scheduler: Scheduler
     
+    // License State slice
+    public let licenseState: LicenseState
+
+    // Model Management slice
+    public private(set) var generator: any TextGenerator
+    public private(set) var hasModel: Bool = false
+    public let catalog: ModelCatalog
+    public let downloader: ModelDownloading
+    public let choices: ModelChoiceStore
+    public let tier: RAMTier
+    
+    public private(set) lazy var modelManager: ModelManager = ModelManager(
+        downloader: downloader,
+        installer: MLXGeneratorInstaller(setGenerator: { [weak self] gen in
+            Task { @MainActor in self?.applyGenerator(gen) }
+        }),
+        choices: choices
+    )
+
     // Additive properties for Phase-1/2/3 features
     public let pipeline: any PipelineStore
     public let mailBackend: any MailBackend
@@ -55,6 +77,9 @@ public final class AppEnvironment: ObservableObject {
                  approvals: ApprovalStore, audit: PersistentAuditLog, index: any VectorIndex,
                  generator: any TextGenerator, embedder: any Embedder, gmail: GmailAuth,
                  orchestrator: Orchestrator, scheduler: Scheduler,
+                 licenseState: LicenseState,
+                 catalog: ModelCatalog, downloader: ModelDownloading, 
+                 choices: ModelChoiceStore, tier: RAMTier,
                  pipeline: any PipelineStore,
                  mailBackend: any MailBackend, autonomySettings: AutonomySettingsStore,
                  autonomyForAgent: @escaping @Sendable (String) -> Autonomy,
@@ -70,6 +95,11 @@ public final class AppEnvironment: ObservableObject {
         self.gmail = gmail
         self.orchestrator = orchestrator
         self.scheduler = scheduler
+        self.licenseState = licenseState
+        self.catalog = catalog
+        self.downloader = downloader
+        self.choices = choices
+        self.tier = tier
         self.pipeline = pipeline
         self.mailBackend = mailBackend
         self.autonomySettings = autonomySettings
@@ -77,9 +107,13 @@ public final class AppEnvironment: ObservableObject {
         self.spyBackend = spyBackend
     }
 
+    private func applyGenerator(_ gen: any TextGenerator) {
+        self.generator = gen
+        self.hasModel = true
+    }
+
     public static func live(
         base: URL? = nil,
-        clientID: String? = nil,
         now: @escaping @Sendable () -> Date = Date.init
     ) throws -> AppEnvironment {
         let fm = FileManager.default
@@ -94,21 +128,34 @@ public final class AppEnvironment: ObservableObject {
         let approvals = ApprovalStore(database: database, now: nowSeconds)
         let audit = PersistentAuditLog(database: database, now: nowSeconds)
         let index = SqliteVecIndex(database: database)
+        
         let generator: any TextGenerator = NotReadyTextGenerator()
-        let embedder: any Embedder = FakeEmbedder()
+        let embedder: any Embedder = MLXEmbedder(modelPath: Config.embeddingGemmaModelPath)
 
         let http = URLSessionHTTPClient()
         let tokenStore: any TokenStore = KeychainTokenStore()
-        let gmail = GmailAuth(clientID: clientID ?? liveClientID(), http: http, store: tokenStore, now: now)
-        let accountEmail = ""
+        let gmail = GmailAuth(clientID: Config.googleClientID, http: http, store: tokenStore, now: now)
+        let accountEmail = Config.testEmail
         let mailBackend = GmailMailBackend(http: http, tokenProvider: gmail, accountEmail: accountEmail)
         let sync = GmailSync(http: http, tokenProvider: gmail, accountEmail: accountEmail)
+
+        // License State wiring
+        let licenseState = LicenseState()
+
+        // Model Catalog wiring
+        let modelsDir = resolvedBase.appendingPathComponent("Senani", isDirectory: true)
+                                   .appendingPathComponent("models", isDirectory: true)
+        try? fm.createDirectory(at: modelsDir, withIntermediateDirectories: true)
+        let catalog = ModelCatalog(http: URLSessionCatalogClient())
+        let downloader = FileModelDownloader(baseDirectory: modelsDir)
+        let choices = UserDefaultsModelChoiceStore()
+        let tier = RAMTier.detectHost()
 
         let pipeline = try SqlitePipelineStore(database: database)
         let (orchestrator, scheduler) = Self.makeEngine(
             mailBackend: mailBackend, approvals: approvals, audit: audit, messages: messages,
             index: index, embedder: embedder, generator: generator, pipeline: pipeline,
-            rules: rules, sync: sync, now: now)
+            rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState, now: now)
 
         let settings = AutonomySettingsStore.live()
         let autonomyForAgent: @Sendable (String) -> Autonomy = { settings.autonomy(forAgent: $0) }
@@ -118,6 +165,9 @@ public final class AppEnvironment: ObservableObject {
                               approvals: approvals, audit: audit, index: index,
                               generator: generator, embedder: embedder, gmail: gmail,
                               orchestrator: orchestrator, scheduler: scheduler,
+                              licenseState: licenseState,
+                              catalog: catalog, downloader: downloader,
+                              choices: choices, tier: tier,
                               pipeline: pipeline,
                               mailBackend: mailBackend, autonomySettings: settings,
                               autonomyForAgent: autonomyForAgent, spyBackend: spy)
@@ -144,10 +194,20 @@ public final class AppEnvironment: ObservableObject {
         let sync = GmailSync(http: http, tokenProvider: gmail, accountEmail: "preview@local")
 
         let pipeline = InMemoryPipelineStore(seededDeals)
+        
+        // Preview License state
+        let licenseState = LicenseState(status: .valid(.pro))
+
+        // Preview Catalog stubs
+        let catalog = ModelCatalog(http: URLSessionCatalogClient())
+        let downloader = FileModelDownloader(baseDirectory: URL(fileURLWithPath: "/tmp/preview/models"))
+        let choices = UserDefaultsModelChoiceStore(defaults: UserDefaults(suiteName: "preview")!)
+        let tier = RAMTier.gb16
+
         let (orchestrator, scheduler) = Self.makeEngine(
             mailBackend: mailBackend, approvals: approvals, audit: audit, messages: messages,
             index: index, embedder: embedder, generator: generator, pipeline: pipeline,
-            rules: rules, sync: sync, now: now)
+            rules: rules, sync: sync, gmailAuth: gmail, licenseState: licenseState, now: now)
 
         let settings = AutonomySettingsStore.inMemory()
         let autonomyForAgent: @Sendable (String) -> Autonomy = { settings.autonomy(forAgent: $0) }
@@ -156,6 +216,9 @@ public final class AppEnvironment: ObservableObject {
                               approvals: approvals, audit: audit, index: index,
                               generator: generator, embedder: embedder, gmail: gmail,
                               orchestrator: orchestrator, scheduler: scheduler,
+                              licenseState: licenseState,
+                              catalog: catalog, downloader: downloader,
+                              choices: choices, tier: tier,
                               pipeline: pipeline,
                               mailBackend: mailBackend, autonomySettings: settings,
                               autonomyForAgent: autonomyForAgent, spyBackend: spy)
@@ -165,12 +228,13 @@ public final class AppEnvironment: ObservableObject {
         mailBackend: any MailBackend, approvals: ApprovalStore, audit: PersistentAuditLog,
         messages: MessageStore, index: any VectorIndex, embedder: any Embedder,
         generator: any TextGenerator, pipeline: any PipelineStore, rules: RuleStore,
-        sync: GmailSync, now: @escaping @Sendable () -> Date
+        sync: GmailSync, gmailAuth: GmailAuth, licenseState: LicenseState,
+        now: @escaping @Sendable () -> Date
     ) -> (Orchestrator, Scheduler) {
         let triage = TriageAgent()
-        let replyDrafter = ReplyDrafterAgent(
-            generator: generator,
-            voice: VoiceConditionerPrefixProvider(
+        
+        let voiceProvider: @Sendable () -> any VoicePrefixProviding = {
+            VoiceConditionerPrefixProvider(
                 conditioner: VoiceConditioner(embedder: embedder, index: index),
                 profile: VoiceProfile(
                     scope: "global",
@@ -181,9 +245,48 @@ public final class AppEnvironment: ObservableObject {
                     emojiRate: 0.0
                 )
             )
+        }
+
+        // Phase 1 agents
+        let replyDrafter = ReplyDrafterAgent(
+            generator: generator,
+            voice: voiceProvider()
         )
         
-        let registry = AgentRegistry(agents: [replyDrafter])
+        // Phase 2 agents
+        let booking = BookingAgent(
+            availability: CalendarAvailabilityProvider(client: CalendarClient(http: URLSessionHTTPClient(), tokenProvider: gmailAuth))
+        )
+        let hygiene = InboxHygieneAgent()
+        
+        // Phase 3 agents
+        let leadQualifier = LeadQualifierAgent()
+        let followUp = FollowUpAgent(
+            generator: generator,
+            voice: voiceProvider(),
+            pipelineRead: pipeline,
+            pipelineTouch: pipeline,
+            policy: FollowUpPolicy()
+        )
+        let proposalTracker = ProposalTrackerAgent(
+            classifier: ReplyIntentClassifier(generator: generator)
+        )
+        let outreach = OutreachAgent(
+            generator: generator,
+            voice: voiceProvider()
+        )
+        let finance = InvoiceFinanceAgent()
+        
+        let allAgents: [any Agent] = [
+            replyDrafter, booking, hygiene, leadQualifier, 
+            followUp, proposalTracker, outreach, finance
+        ]
+        
+        // Filter agents by license tier
+        let enabledAgents = allAgents.filter { licenseState.enablesAgent(id: $0.id) }
+        
+        let registry = AgentRegistry(agents: enabledAgents)
+        
         let orchestrator = Orchestrator(
             registry: registry, triage: triage, mailBackend: mailBackend,
             approvals: approvals, audit: audit, messages: messages, index: index,
@@ -196,10 +299,9 @@ public final class AppEnvironment: ObservableObject {
 
     private static func liveClientID() -> String {
         ProcessInfo.processInfo.environment["SENANI_GOOGLE_CLIENT_ID"]
-            ?? "REPLACE_WITH_GOOGLE_OAUTH_DESKTOP_CLIENT_ID"
+            ?? Config.googleClientID
     }
 
-    /// Deterministic seed covering several stages for previews/tests.
     public static let seededDeals: [Deal] = [
         Deal(id: "sarah@acme.com", contactEmail: "sarah@acme.com", company: "Acme Corp",
              stage: .qualified, score: 82, value: nil,
@@ -214,4 +316,9 @@ public final class AppEnvironment: ObservableObject {
              stage: .won, score: 90, value: 50_000,
              lastTouch: Date(timeIntervalSince1970: 1_700_300_000), sourceMessageId: "m-4"),
     ]
+
+    public func bootstrapPersistedModel() {
+        do { _ = try modelManager.loadPersistedOnLaunch() }
+        catch { /* leave NotReady */ }
+    }
 }

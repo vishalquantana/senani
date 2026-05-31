@@ -19,6 +19,8 @@ let package = Package(
         .package(path: "../Packages/SenaniAssistant"),
         .package(path: "../Packages/SenaniEngine"),
         .package(path: "../Packages/SenaniDesign"),
+        .package(path: "../Packages/SenaniModelCatalog"),
+        .package(path: "../Packages/SenaniLicensing"),
     ],
     targets: [
         .executableTarget(
@@ -27,14 +29,14 @@ let package = Package(
                 "SenaniRules", "SenaniStore", "SenaniInference", "SenaniGmail",
                 "SenaniVoice", "SenaniDocs", "SenaniReplyZero", "SenaniAnalytics",
                 "SenaniAssistant", "SenaniEngine", "SenaniDesign",
+                "SenaniModelCatalog", "SenaniLicensing",
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(
             name: "SenaniAppTests",
             dependencies: [
-                "SenaniApp",
-                "SenaniGmail",
+                "SenaniApp", "SenaniLicensing",
             ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
