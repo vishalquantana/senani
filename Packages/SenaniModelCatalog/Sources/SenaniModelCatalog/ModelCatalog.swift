@@ -38,3 +38,42 @@ public struct ModelCatalog: Sendable {
         return models
     }
 }
+
+/// The picker payload: models that fit a tier (smallest first) + the suggested default.
+public struct RecommendationResult: Sendable, Equatable {
+    public let tier: RAMTier
+    public let models: [ModelInfo]
+    public let suggestedDefault: ModelInfo?
+    public init(tier: RAMTier, models: [ModelInfo], suggestedDefault: ModelInfo?) {
+        self.tier = tier
+        self.models = models
+        self.suggestedDefault = suggestedDefault
+    }
+}
+
+extension ModelCatalog {
+    /// Pure RAM-tier policy (see plan \"RAM-tier policy\" table). No I/O.
+    public static func recommend(from models: [ModelInfo], tier: RAMTier) -> RecommendationResult {
+        let fitting = models.filter { model in
+            if let size = model.sizeBytes { return size <= tier.maxModelBytes }
+            return tier == .gb32          // unknown size only offered to the biggest tier
+        }
+        let sorted = fitting.sorted { lhs, rhs in
+            switch (lhs.sizeBytes, rhs.sizeBytes) {
+            case let (l?, r?): return l < r
+            case (nil, _?): return false   // nil sorts last
+            case (_?, nil): return true
+            case (nil, nil): return lhs.id < rhs.id
+            }
+        }
+        let preferred = sorted.first { $0.id == tier.defaultModelId }
+        let suggested = preferred ?? sorted.first
+        return RecommendationResult(tier: tier, models: sorted, suggestedDefault: suggested)
+    }
+
+    /// Fetch + recommend for the host tier in one call.
+    public func recommended(tier: RAMTier = .detectHost()) async throws -> RecommendationResult {
+        let models = try await fetch()
+        return Self.recommend(from: models, tier: tier)
+    }
+}
