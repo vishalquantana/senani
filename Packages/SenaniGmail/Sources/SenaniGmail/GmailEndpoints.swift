@@ -134,6 +134,8 @@ struct GmailHeader: Decodable {
 
 struct GmailBody: Decodable {
     var data: String?
+    var attachmentId: String?
+    var size: Int?
 }
 
 struct GmailLabelList: Decodable {

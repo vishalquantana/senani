@@ -37,6 +37,36 @@ public struct GmailAttachmentFetcher: Sendable {
         self.accountEmail = accountEmail
     }
 
+    /// Fetches the full message and walks its payload parts (recursively, since
+    /// attachments can be nested inside multipart parts) collecting every part
+    /// that has a `body.attachmentId`, a non-empty `filename`, and a `mimeType`.
+    public func attachments(messageId: String) async throws -> [GmailAttachmentRef] {
+        let token = try await tokenProvider.validAccessToken()
+        let request = GmailEndpoints.getMessage(id: messageId, accessToken: token)
+        let (data, response) = try await http.send(request)
+        try GmailAuth.validate(response: response, data: data)
+        let message = try JSONDecoder().decode(GmailFullMessage.self, from: data)
+        var refs: [GmailAttachmentRef] = []
+        Self.collectAttachments(in: message.payload, into: &refs)
+        return refs
+    }
+
+    private static func collectAttachments(in payload: GmailPayload, into refs: inout [GmailAttachmentRef]) {
+        if let attachmentId = payload.body?.attachmentId, !attachmentId.isEmpty,
+           let filename = payload.filename, !filename.isEmpty,
+           let mimeType = payload.mimeType {
+            refs.append(GmailAttachmentRef(
+                attachmentId: attachmentId,
+                filename: filename,
+                mimeType: mimeType,
+                size: payload.body?.size ?? 0
+            ))
+        }
+        for part in payload.parts ?? [] {
+            collectAttachments(in: part, into: &refs)
+        }
+    }
+
     /// Fetches the attachment body and decodes its URL-safe base64 `data` field.
     public func data(messageId: String, attachmentId: String) async throws -> Data {
         let token = try await tokenProvider.validAccessToken()

@@ -76,4 +76,76 @@ import Testing
             _ = try await fetcher.data(messageId: "m1", attachmentId: "att-9")
         }
     }
+
+    @Test func attachmentsWalksNestedPartsAndCollectsRefs() async throws {
+        let fake = FakeHTTPClient()
+        await fake.enqueueJSON(AttachmentFixtures.nestedMultipartJSON)
+        let fetcher = GmailAttachmentFetcher(
+            http: fake,
+            tokenProvider: StubTokenProvider(token: "T"),
+            accountEmail: "me@example.com"
+        )
+
+        let refs = try await fetcher.attachments(messageId: "m1")
+        #expect(refs == [
+            GmailAttachmentRef(attachmentId: "att-top", filename: "invoice.pdf", mimeType: "application/pdf", size: 2048),
+            GmailAttachmentRef(attachmentId: "att-nested", filename: "logo.png", mimeType: "image/png", size: 512),
+        ])
+
+        let request = try #require(await fake.recordedRequests.first)
+        let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!
+        #expect(components.path == "/gmail/v1/users/me/messages/m1")
+        #expect(components.queryItems?.contains(URLQueryItem(name: "format", value: "full")) == true)
+    }
+
+    @Test func attachmentsReturnsEmptyWhenNone() async throws {
+        let fake = FakeHTTPClient()
+        await fake.enqueueJSON(AttachmentFixtures.noAttachmentJSON)
+        let fetcher = GmailAttachmentFetcher(
+            http: fake,
+            tokenProvider: StubTokenProvider(token: "T"),
+            accountEmail: "me@example.com"
+        )
+        let refs = try await fetcher.attachments(messageId: "m1")
+        #expect(refs.isEmpty)
+    }
+
+    @Test func attachmentsThrowsOnNon200() async throws {
+        let fake = FakeHTTPClient()
+        await fake.enqueueJSON(#"{"error":"denied"}"#, status: 500)
+        let fetcher = GmailAttachmentFetcher(
+            http: fake,
+            tokenProvider: StubTokenProvider(token: "T"),
+            accountEmail: "me@example.com"
+        )
+        await #expect(throws: HTTPClientError.self) {
+            _ = try await fetcher.attachments(messageId: "m1")
+        }
+    }
+}
+
+enum AttachmentFixtures {
+    // multipart/mixed: a top-level PDF attachment + a nested multipart/related
+    // that itself contains an inline-but-named PNG attachment.
+    static let nestedMultipartJSON = """
+    {"id":"m1","threadId":"t-1","labelIds":["INBOX"],"internalDate":"1700000000000",
+     "payload":{"mimeType":"multipart/mixed","headers":[],
+       "parts":[
+         {"mimeType":"multipart/alternative","parts":[
+           {"mimeType":"text/plain","body":{"data":"aGk"}},
+           {"mimeType":"text/html","body":{"data":"PGI-"}}]},
+         {"mimeType":"application/pdf","filename":"invoice.pdf",
+          "body":{"attachmentId":"att-top","size":2048}},
+         {"mimeType":"multipart/related","parts":[
+           {"mimeType":"image/png","filename":"logo.png",
+            "body":{"attachmentId":"att-nested","size":512}}]}]}}
+    """
+
+    static let noAttachmentJSON = """
+    {"id":"m1","threadId":"t-1","labelIds":["INBOX"],"internalDate":"1700000000000",
+     "payload":{"mimeType":"multipart/alternative","headers":[],
+       "parts":[
+         {"mimeType":"text/plain","body":{"data":"aGk"}},
+         {"mimeType":"text/html","body":{"data":"PGI-"}}]}}
+    """
 }
