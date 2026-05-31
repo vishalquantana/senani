@@ -1,6 +1,15 @@
 import Foundation
 import SenaniGmail
 
+/// Errors surfaced by `CalendarClient` for conditions that must NOT be silently treated as "free".
+public enum CalendarError: Error, Equatable {
+    /// The freeBusy API returned a per-calendar `errors` payload (e.g. notFound/forbidden) instead of
+    /// `busy`. Treating this as zero busy would risk DOUBLE-BOOKING, so we surface it.
+    case freeBusyLookupFailed(calendarId: String, errors: [String])
+    /// The freeBusy response carried no entry we could resolve for the requested calendar.
+    case freeBusyCalendarMissing(calendarId: String)
+}
+
 /// The Google Calendar connector, mirroring `SenaniGmail.GmailSync`: it runs over the injected
 /// `HTTPClient` + `AccessTokenProviding` (reused from SenaniGmail), so the same OAuth token (with
 /// the added Calendar scope) drives both connectors. Pure transport + decode; no business logic.
@@ -22,7 +31,20 @@ public struct CalendarClient: Sendable {
         let (data, response) = try await http.send(request)
         try CalendarHTTP.validate(response: response, data: data)
         let decoded = try JSONDecoder().decode(FreeBusyResponse.self, from: data)
-        let busy = decoded.calendars?[calendarId]?.busy ?? []
+        let calendars = decoded.calendars ?? [:]
+        // Robust key lookup: Google may key the result under a RESOLVED address (e.g. the calendar's
+        // real email) rather than the requested id. Prefer the requested id; fall back to the sole
+        // entry when exactly one is returned.
+        let entry = calendars[calendarId] ?? (calendars.count == 1 ? calendars.values.first : nil)
+        guard let calendar = entry else {
+            throw CalendarError.freeBusyCalendarMissing(calendarId: calendarId)
+        }
+        // A per-calendar `errors` payload means the lookup FAILED — never read it as "fully free".
+        if let errors = calendar.errors, !errors.isEmpty {
+            let reasons = errors.map { $0.reason ?? $0.domain ?? "unknown" }
+            throw CalendarError.freeBusyLookupFailed(calendarId: calendarId, errors: reasons)
+        }
+        let busy = calendar.busy ?? []
         return busy.compactMap { block in
             guard let start = CalendarHTTP.date(from: block.start),
                   let end = CalendarHTTP.date(from: block.end) else { return nil }

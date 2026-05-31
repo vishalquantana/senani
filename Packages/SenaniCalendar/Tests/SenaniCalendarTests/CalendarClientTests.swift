@@ -35,6 +35,26 @@ private func range() -> DateRange {
     #expect(events.first?.title == "Standup")
 }
 
+@Test func freeBusyThrowsOnPerCalendarErrorsInsteadOfReadingFree() async throws {
+    let http = FakeHTTPClient()
+    await http.enqueueJSON(CalFix.freeBusyErrorJSON)
+    let client = CalendarClient(http: http, tokenProvider: StubTokenProvider(token: "T"))
+    // A per-calendar `errors` payload must THROW, never silently return [] ("fully free").
+    await #expect(throws: CalendarError.self) {
+        _ = try await client.freeBusy(range: range())
+    }
+}
+
+@Test func freeBusyResolvesWhenResponseKeyedUnderResolvedAddress() async throws {
+    let http = FakeHTTPClient()
+    await http.enqueueJSON(CalFix.freeBusyResolvedKeyJSON)
+    // Requested id is "primary" but the response keys under the resolved address.
+    let client = CalendarClient(http: http, tokenProvider: StubTokenProvider(token: "T"))
+    let busy = try await client.freeBusy(range: range())
+    #expect(busy.count == 1)
+    #expect(busy.first?.start == CalendarHTTP.date(from: "2023-11-15T09:00:00Z"))
+}
+
 @Test func freeBusyThrowsOnHTTPError() async throws {
     let http = FakeHTTPClient()
     await http.enqueueJSON(#"{"error":"forbidden"}"#, status: 403)

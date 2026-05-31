@@ -78,6 +78,12 @@ struct FreeBusyResponse: Decodable {
 
 struct FreeBusyCalendar: Decodable {
     var busy: [FreeBusyBusy]?
+    var errors: [FreeBusyError]?
+}
+
+struct FreeBusyError: Decodable, Equatable {
+    var domain: String?
+    var reason: String?
 }
 
 struct FreeBusyBusy: Decodable {

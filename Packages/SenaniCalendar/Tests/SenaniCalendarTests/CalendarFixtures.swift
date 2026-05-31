@@ -43,4 +43,37 @@ enum CalFix {
       {"id":"e2","summary":"Holiday","start":{"date":"2023-11-16"},"end":{"date":"2023-11-17"}}
     ]}
     """
+
+    /// A per-calendar freeBusy error payload (no `busy`). Must NOT read as "fully free".
+    static let freeBusyErrorJSON = """
+    {"calendars":{"primary":{"errors":[{"domain":"global","reason":"notFound"}]}}}
+    """
+
+    /// freeBusy where the response keys under a RESOLVED address rather than the requested id.
+    static let freeBusyResolvedKeyJSON = """
+    {"calendars":{"ramesh@quantana.in":{"busy":[
+      {"start":"2023-11-15T09:00:00Z","end":"2023-11-15T10:00:00Z"}
+    ]}}}
+    """
+
+    /// An event whose timestamps carry fractional seconds (must still parse + count as busy).
+    static let eventsFractionalJSON = """
+    {"items":[
+      {"id":"e1","summary":"Standup","start":{"dateTime":"2023-11-15T09:00:00.000Z"},"end":{"dateTime":"2023-11-15T09:30:00.000Z"}}
+    ]}
+    """
+
+    /// Page 1 of a paginated events.list response (carries nextPageToken).
+    static let eventsPage1JSON = """
+    {"nextPageToken":"PAGE2","items":[
+      {"id":"e1","summary":"Standup","start":{"dateTime":"2023-11-15T09:00:00Z"},"end":{"dateTime":"2023-11-15T09:30:00Z"}}
+    ]}
+    """
+
+    /// Page 2 of a paginated events.list response (no nextPageToken — terminal).
+    static let eventsPage2JSON = """
+    {"items":[
+      {"id":"e2","summary":"Review","start":{"dateTime":"2023-11-15T11:00:00Z"},"end":{"dateTime":"2023-11-15T11:30:00Z"}}
+    ]}
+    """
 }
